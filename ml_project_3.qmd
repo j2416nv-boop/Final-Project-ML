@@ -1,0 +1,290 @@
+---
+title: "ML Creative Project 3 — Three-Way Equity Classifier Comparison"
+subtitle: "Phase 1 + Phase 2 — Data Assembly and Feature Engineering"
+author: "Group 8 | University of South Florida"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    theme: cosmo
+    embed-resources: true
+  pdf:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+execute:
+  warning: false
+  message: false
+  cache: false
+---
+
+```{r setup}
+#| include: true
+
+# ============================================================================
+# PROJECT-WIDE CONFIG
+# Set dev_mode = TRUE for fast iteration on a 50-stock subset.
+# Set dev_mode = FALSE for the full S&P 500 universe.
+# Everything else flows from this single switch.
+# ============================================================================
+
+CFG <- list(
+  dev_mode      = TRUE,                         # <<< toggle here
+  dev_n_stocks  = 50,
+  start_date    = as.Date("2014-01-01"),
+  end_date      = as.Date("2024-12-31"),
+  train_start   = as.Date("2018-01-01"),
+  train_end     = as.Date("2022-12-31"),
+  test_start    = as.Date("2023-01-01"),
+  test_end      = as.Date("2024-12-31"),
+  loading_window_months = 36,
+  loading_min_obs       = 24,
+  loading_lag_months    = 2,
+  macro_lag_months      = 1,
+  seed = 8675309
+)
+assign("CFG", CFG, envir = .GlobalEnv)
+
+source("R/utils.R")
+source("R/01_pull_crsp.R")
+source("R/02_pull_french.R")
+source("R/03_pull_fred.R")
+source("R/04_build_panel.R")
+source("R/05_features.R")
+
+library(ggplot2)
+library(knitr)
+library(scales)
+
+theme_set(theme_minimal(base_size = 11))
+```
+
+# Overview
+
+This document executes Phases 1 and 2 of the project: data assembly and feature engineering. Subsequent phases (clustering, comparison battery, anomaly detection) read from the parquet files produced here.
+
+**Mode:** `r if (CFG$dev_mode) "DEVELOPMENT — small subset for fast iteration" else "FULL — entire S&P 500 universe"`
+
+**Universe:** Historical S&P 500 constituents, point-in-time, including delisted names.
+**Date range:** `r CFG$start_date` to `r CFG$end_date`.
+
+# Phase 1 — Data Assembly
+
+## Pull CRSP
+
+Historical S&P 500 membership, monthly returns adjusted for delistings, stock header info (ticker, SIC), and GICS sector via the CCM linkage.
+
+```{r pull-crsp}
+crsp <- pull_crsp_all()
+```
+
+**S&P 500 membership spans:**
+
+```{r}
+crsp$members |>
+  summarise(
+    spans = n(),
+    permnos = n_distinct(permno),
+    earliest_start = min(start),
+    latest_end = max(end_date)
+  ) |>
+  kable()
+```
+
+**Monthly return panel:**
+
+```{r}
+crsp$monthly |>
+  summarise(
+    rows = n(),
+    permnos = n_distinct(permno),
+    months = n_distinct(date_eom),
+    delisting_obs = sum(!is.na(dlret)),
+    pct_ret_present = mean(!is.na(ret))
+  ) |>
+  kable(digits = 3)
+```
+
+## Pull Ken French
+
+Five factors plus risk-free rate (monthly), and the FF12 industry definitions (SIC ranges).
+
+```{r pull-french}
+french <- pull_french_all()
+```
+
+**FF5 factors — head and tail:**
+
+```{r}
+bind_rows(head(french$ff5, 3), tail(french$ff5, 3)) |>
+  kable(digits = 4)
+```
+
+**FF12 industry definitions:**
+
+```{r}
+french$ff12_def |>
+  group_by(industry_num, industry_code, industry_name) |>
+  summarise(n_sic_ranges = n(), .groups = "drop") |>
+  arrange(industry_num) |>
+  kable()
+```
+
+## Pull FRED
+
+10-year Treasury yield, Fed funds rate, VIX (daily, aggregated to end-of-month).
+
+```{r pull-fred}
+fred <- pull_fred_all()
+```
+
+```{r}
+fred |>
+  summarise(
+    months = n(),
+    earliest = min(date_eom),
+    latest = max(date_eom),
+    pct_ten_y = mean(!is.na(ten_y)),
+    pct_ffr = mean(!is.na(ffr)),
+    pct_vix = mean(!is.na(vix))
+  ) |>
+  kable(digits = 3)
+```
+
+## Build the panel
+
+Merge everything. The panel is one row per (permno, end-of-month) for every month in which the stock was an S&P 500 constituent.
+
+```{r build-panel}
+panel <- build_panel(crsp, french, fred)
+```
+
+**Panel summary:**
+
+```{r}
+panel |>
+  summarise(
+    rows = n(),
+    permnos = n_distinct(permno),
+    months = n_distinct(date_eom),
+    pct_ret_excess = mean(!is.na(ret_excess)),
+    pct_gics = mean(!is.na(gsector)),
+    pct_ff12 = mean(!is.na(ff12_num)),
+    pct_macro = mean(!is.na(ten_y) & !is.na(ffr) & !is.na(vix))
+  ) |>
+  kable(digits = 3)
+```
+
+**GICS sector distribution (most recent year):**
+
+```{r}
+recent <- max(panel$date_eom)
+panel |>
+  filter(date_eom == recent, !is.na(gics_sector_name)) |>
+  count(gics_sector_name, sort = TRUE) |>
+  kable()
+```
+
+**FF12 industry distribution (most recent year):**
+
+```{r}
+panel |>
+  filter(date_eom == recent, !is.na(ff12_code)) |>
+  count(ff12_num, ff12_code, sort = TRUE) |>
+  kable()
+```
+
+# Phase 2 — Feature Engineering
+
+The features panel is the output of strict, audited transformations on the raw panel:
+
+1. **Rolling FF5 loadings** estimated on a 36-month window ending at $t-2$.
+2. **Realized alpha** at $t$ = $r^e_t - \sum_k \beta_{i,k} F_{k,t}$, where $\beta$ comes from the $t-2$ window (label only, never a feature).
+3. **Cross-sectional z-scores** of loadings — at each date, z-score across the cross-section.
+4. **Standard controls**: 12-1 momentum, 12m volatility, log market cap (lagged 1m).
+5. **Macro lags**: 10Y, FFR, VIX all lagged 1m.
+6. **Forward target**: $\alpha_{i,t+1}$ obtained by leading realized alpha by 1 month within each stock.
+
+```{r features}
+feats <- build_features(panel)
+```
+
+## Coverage diagnostics
+
+```{r}
+feats |>
+  summarise(
+    rows = n(),
+    pct_loadings = mean(!is.na(beta_mkt)),
+    pct_realized_alpha = mean(!is.na(alpha_realized)),
+    pct_fwd_target = mean(!is.na(alpha_fwd_1m)),
+    modelable = mean(!is.na(alpha_fwd_1m) & !is.na(beta_mkt) & !is.na(mom_12_1))
+  ) |>
+  kable(digits = 3)
+```
+
+## Anti-leakage tests
+
+```{r leak-tests}
+leak_results <- run_leakage_tests(feats)
+```
+
+The critical test: `alpha_fwd_1m` at $(i, t)$ must equal `alpha_realized` at $(i, t+1)$ for every paired row. This is reported above (`TRUE` = pass).
+
+## Distributions of key variables
+
+```{r}
+#| fig-height: 3
+#| fig-width: 8
+feats |>
+  filter(!is.na(alpha_realized)) |>
+  ggplot(aes(alpha_realized)) +
+  geom_histogram(bins = 60, fill = "#2E75B6", alpha = 0.85) +
+  labs(title = "Realized alpha (monthly)",
+       x = "alpha = excess return - β·FF5",
+       y = "count")
+```
+
+```{r}
+#| fig-height: 4
+#| fig-width: 8
+feats |>
+  filter(!is.na(beta_mkt)) |>
+  select(beta_mkt, beta_smb, beta_hml, beta_rmw, beta_cma) |>
+  pivot_longer(everything(), names_to = "factor", values_to = "loading") |>
+  ggplot(aes(loading)) +
+  geom_histogram(bins = 50, fill = "#1F4E79", alpha = 0.85) +
+  facet_wrap(~ factor, scales = "free", ncol = 5) +
+  labs(title = "FF5 factor loadings (rolling 36m, ending t-2)",
+       x = NULL, y = NULL)
+```
+
+## Sample of feature rows
+
+```{r}
+feats |>
+  filter(!is.na(alpha_fwd_1m), !is.na(beta_mkt)) |>
+  slice_sample(n = 8) |>
+  select(permno, date_eom, ticker, gics_sector_name, ff12_code,
+         alpha_realized, alpha_fwd_1m,
+         beta_mkt, beta_hml,
+         z_beta_mkt, z_beta_hml,
+         mom_12_1, vol_12m, log_mktcap_lag, ten_y_lag) |>
+  kable(digits = 4)
+```
+
+# Outputs
+
+Phase 1 + 2 wrote the following files:
+
+```{r}
+list.files(c(PATHS$raw, PATHS$processed),
+           pattern = "\\.parquet$", full.names = TRUE) |>
+  tibble(file = _) |>
+  mutate(size_kb = round(file.size(file) / 1024, 1)) |>
+  kable()
+```
+
+Phase 3 (build the three classifiers) reads from `data/processed/features*.parquet`.
