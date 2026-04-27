@@ -2565,9 +2565,9 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>french <span class="ot">&lt;-</span> <span class="fu">pull_french_all</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[19:02:33] Pulling Ken French data
-[19:02:33] cache hit:  data/raw/ff5.parquet
-[19:02:33] cache hit:  data/raw/ff12_def.parquet</code></pre>
+<pre><code>[19:18:33] Pulling Ken French data
+[19:18:33] cache hit:  data/raw/ff5.parquet
+[19:18:33] cache hit:  data/raw/ff12_def.parquet</code></pre>
 </div>
 </div>
 <div class="cell">
@@ -2755,10 +2755,10 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>fred <span class="ot">&lt;-</span> <span class="fu">pull_fred_all</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[19:02:34] Pulling FRED data
-[19:02:34] cache hit:  data/raw/fred_dgs10.parquet
-[19:02:34] cache hit:  data/raw/fred_dff.parquet
-[19:02:34] cache hit:  data/raw/fred_vixcls.parquet</code></pre>
+<pre><code>[19:18:33] Pulling FRED data
+[19:18:33] cache hit:  data/raw/fred_dgs10.parquet
+[19:18:33] cache hit:  data/raw/fred_dff.parquet
+[19:18:33] cache hit:  data/raw/fred_vixcls.parquet</code></pre>
 </div>
 </div>
 <div class="cell">
@@ -2810,9 +2810,9 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>panel <span class="ot">&lt;-</span> <span class="fu">build_panel</span>(crsp, french, fred)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[19:02:34] Building master panel
-[19:02:34]   panel keys: 52221 rows
-[19:02:37]   wrote: data/processed/panel.parquet</code></pre>
+<pre><code>[19:18:34] Building master panel
+[19:18:34]   panel keys: 52221 rows
+[19:18:37]   wrote: data/processed/panel.parquet</code></pre>
 </div>
 </div>
 <div class="cell">
@@ -3018,9 +3018,9 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>feats <span class="ot">&lt;-</span> <span class="fu">build_features</span>(panel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[19:02:37] Building features (FF lag = 2 months, loading lag = 2 months)
-[19:02:38] Computing rolling FF5 betas
-[19:02:42]   wrote: data/processed/features.parquet</code></pre>
+<pre><code>[19:18:37] Building features (FF lag = 2 months, loading lag = 2 months)
+[19:18:37] Computing rolling FF5 betas
+[19:18:42]   wrote: data/processed/features.parquet</code></pre>
 </div>
 </div>
 <section id="coverage" class="level2">
@@ -3073,7 +3073,7 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>leak_results <span class="ot">&lt;-</span> <span class="fu">run_leakage_tests</span>(feats)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[19:02:42] Running leakage tests
+<pre><code>[19:18:42] Running leakage tests
 # A tibble: 3 × 2
   test                                                passed
   &lt;chr&gt;                                               &lt;lgl&gt; 
@@ -3135,14 +3135,14 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>clust <span class="ot">&lt;-</span> <span class="fu">build_clusters_annual</span>(panel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[19:02:43] Building annual K-Means clusters on return co-movement
-[19:02:43]   refit 2017-12-31: k=2, sil=0.333, n=325
-[19:02:44]   refit 2018-12-31: k=2, sil=0.415, n=339
-[19:02:44]   refit 2019-12-31: k=2, sil=0.433, n=358
-[19:02:44]   refit 2020-12-31: k=2, sil=0.404, n=379
-[19:02:44]   refit 2021-12-31: k=2, sil=0.358, n=391
-[19:02:44]   refit 2022-12-31: k=2, sil=0.338, n=409
-[19:02:44]   refit 2023-12-31: k=2, sil=0.339, n=421</code></pre>
+<pre><code>[19:18:43] Building annual K-Means clusters on return co-movement
+[19:18:43]   refit 2017-12-31: k=2, sil=0.333, n=325
+[19:18:43]   refit 2018-12-31: k=2, sil=0.415, n=339
+[19:18:44]   refit 2019-12-31: k=2, sil=0.433, n=358
+[19:18:44]   refit 2020-12-31: k=2, sil=0.404, n=379
+[19:18:44]   refit 2021-12-31: k=2, sil=0.358, n=391
+[19:18:44]   refit 2022-12-31: k=2, sil=0.338, n=409
+[19:18:44]   refit 2023-12-31: k=2, sil=0.339, n=421</code></pre>
 </div>
 </div>
 <div class="cell">
@@ -3505,7 +3505,7 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>pred <span class="ot">&lt;-</span> <span class="fu">prediction_compare</span>(feats_g)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[19:02:45] Prediction: train n=7281, test n=3336</code></pre>
+<pre><code>[19:18:45] Prediction: train n=7281, test n=3336</code></pre>
 </div>
 <details class="code-fold">
 <summary>Code</summary>
@@ -3603,9 +3603,9 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>anom <span class="ot">&lt;-</span> <span class="fu">anomaly_compare</span>(feats_g)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[19:02:46]   iForest within GICS
-[19:02:46]   iForest within FF12
-[19:02:46]   iForest within Cluster</code></pre>
+<pre><code>[19:18:46]   iForest within GICS
+[19:18:46]   iForest within FF12
+[19:18:46]   iForest within Cluster</code></pre>
 </div>
 </div>
 <div class="cell">

@@ -1,0 +1,26 @@
+.reveal {
+  font-size: 28px;
+}
+
+.reveal .slides section {
+  overflow-y: auto !important;
+}
+
+.reveal .slides section > * {
+  max-width: 100%;
+}
+
+.reveal table {
+  font-size: 0.75em;
+}
+
+.reveal pre code {
+  font-size: 0.72em;
+  max-height: 26em;
+}
+
+.reveal ul,
+.reveal ol,
+.reveal p {
+  line-height: 1.25;
+}

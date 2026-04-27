@@ -1,0 +1,622 @@
+---
+title: "Three-Way Equity Classifier Comparison"
+subtitle: "GICS Sectors vs. SIC/FF12 Industries vs. K-Means Co-Movement Clusters"
+author: "Group 8 | University of South Florida"
+date: today
+format:
+  revealjs:
+    embed-resources: true
+    transition: zoom
+    width: 1440
+    height: 900
+    margin: 0.04
+    toc: true
+    toc-title: "Overview"
+    scrollable: true
+    css: revealjs-slides.css
+execute:
+  warning: false
+  message: false
+  cache: false
+---
+```{r setup}
+#| include: false
+
+# ============================================================================
+# Project-wide config. dev_mode is available for fast iteration on a small
+# 50-stock subset, but the submitted report should be rendered with
+# dev_mode = FALSE. ff_lag_months addresses the FF data publication delay so
+# the pipeline could be deployed in real time.
+# ============================================================================
+
+CFG <- list(
+  dev_mode      = FALSE,
+  dev_n_stocks  = 50,
+  start_date    = as.Date("2014-01-01"),
+  end_date      = as.Date("2024-12-31"),
+  train_start   = as.Date("2018-01-01"),
+  train_end     = as.Date("2022-12-31"),
+  test_start    = as.Date("2023-01-01"),
+  test_end      = as.Date("2024-12-31"),
+  loading_window_months = 36,
+  loading_min_obs       = 24,
+  loading_lag_months    = 2,    # rolling-beta window ends at t-2
+  ff_lag_months         = 2,    # FF5 publication lag
+  macro_lag_months      = 1,    # FRED macro lag
+  seed = 8675309
+)
+assign("CFG", CFG, envir = .GlobalEnv)
+
+source("R/utils.R")
+source("R/01_pull_crsp.R")
+source("R/02_pull_french.R")
+source("R/03_pull_fred.R")
+source("R/04_build_panel.R")
+source("R/05_features.R")
+source("R/06_clustering.R")
+source("R/07_compare.R")
+
+library(ggplot2)
+library(knitr)
+library(scales)
+
+local({
+  qmd_dir <- tryCatch(
+    dirname(normalizePath(knitr::current_input(dir = TRUE), winslash = "/")),
+    error = function(e) getwd()
+  )
+  candidates <- unique(c(
+    file.path(qmd_dir, "credentials.R"),
+    file.path(getwd(), "credentials.R"),
+    "credentials.R"
+  ))
+  hit <- candidates[file.exists(candidates)][1]
+  if (is.na(hit)) {
+    stop("credentials.R not found. Looked in:\n  ",
+         paste(candidates, collapse = "\n  "),
+         "\nCreate credentials.R with `wrds_user <- \"...\"` and ",
+         "`wrds_password <- \"...\"` next to report.qmd.")
+  }
+  sys.source(hit, envir = .GlobalEnv)
+})
+
+theme_set(theme_minimal(base_size = 11))
+```
+
+# Executive summary
+
+This project asks whether data-driven groupings of S&P 500 stocks classify
+firms differently from traditional industry standards, and whether those
+differences add value for forward-alpha prediction and anomaly detection. We
+compare three classification systems head-to-head:
+
+1. **GICS sectors** — the eleven Global Industry Classification Standard
+   sectors that the index providers use.
+2. **SIC-based FF12 industries** — Ken French's twelve-industry partition,
+   which is built directly from SIC codes and is the academic-finance
+   counterpart to GICS.
+3. **K-Means clusters on return co-movement** — an unsupervised partition
+   that groups stocks whose monthly excess returns move together over a
+   rolling sixty-month window, refit annually with label matching.
+
+All three schemes are fed through the same downstream pipeline on the same
+data, and we compare them on four dimensions: composition overlap,
+within-group homogeneity, predictive accuracy on one-month-forward alpha,
+and anomaly-detection behaviour.
+
+Two design choices, made in response to feedback on an earlier draft of
+this project, deserve to be flagged at the top:
+
+- **The target is alpha, not raw return.** Predicting realised return from
+  factor exposures would mostly recover the standard risk premia
+  (high-beta stocks earn higher returns on average) — a tautology, not a
+  finding. The economically interesting quantity is the residual after
+  factor exposure is priced out, i.e. realised alpha. We predict
+  $\alpha_{i,t+1}$ throughout.
+- **FF factors enter as features only with a publication lag.** Ken
+  French's data library publishes FF5 with a multi-month delay, so a
+  forecast that consumes contemporaneous FF values would be unusable in
+  real time. Every feature derived from FF returns is lagged by
+  `r CFG$ff_lag_months` months. (Realised alpha at month $t$ is computed
+  from $F_t$, but it is a *label* — never a feature input — so this is
+  internally consistent.)
+
+The dataset and pipeline are built with a reproducible configuration object
+(`CFG`). The submitted report is rendered with `CFG$dev_mode = FALSE`, so the
+analysis uses the broader S&P 500 panel rather than the earlier small
+dev-mode sample. The 50-stock option remains in the code only as a debugging
+switch for faster iteration.
+
+# 1. Research question
+
+Do data-driven groupings of S&P 500 stocks produce a meaningfully different
+classification than GICS and SIC/FF12, and do those differences improve
+forward-alpha prediction or anomaly detection?
+
+This restates the question we posed in the original project blueprint in
+two ways. First, we no longer compare an industry classification (GICS) to
+a *risk* taxonomy (FF5 loadings), because those are incommensurable. The
+right comparison set for an industry classification is other industry
+classifications — GICS, SIC/FF12, and an unsupervised industry-style
+clustering. Second, we judge "better classification" not just on
+predictive R² but also on within-group homogeneity (do members really
+behave alike?) and on anomaly-flagging quality (do flagged outliers
+subsequently earn different forward alpha?).
+
+# 2. Methods
+
+## 2.1 The three classification schemes
+
+**GICS sectors.** Eleven sectors assigned per stock-month via the
+CRSP/Compustat Merged (CCM) linkage. Membership is point-in-time: a stock
+that switches sectors mid-sample carries the new sector going forward.
+
+**SIC/FF12.** Each stock-month's SIC code (from CRSP `stocknames`,
+respecting historical name ranges) is mapped to one of twelve Ken French
+industries. SIC codes that fall outside any range get assigned to "Other."
+
+**K-Means clusters on return co-movement.** At the end of each calendar
+year, we take the prior sixty months of monthly excess returns. For each
+stock with at least thirty-six valid months we form a feature vector
+equal to that stock's column of the cross-sectional correlation matrix
+— i.e. each stock is described by its correlation with every other stock
+in the panel. We reduce to ten principal components and fit K-Means for
+$k \in \{2, \ldots, 10\}$, picking $k$ that maximises the mean
+silhouette. The fitted assignment is used for all twelve months of the
+following calendar year. Cluster identities are kept stable across refits
+by Hungarian-algorithm matching against the previous fit's labels.
+
+## 2.2 Target: realised alpha
+
+For each stock-month we compute realised alpha as the residual from the
+five-factor model:
+$$
+\alpha_{i,t} \;=\; r^e_{i,t} \;-\; \sum_{k \in \{\text{Mkt},\text{SMB},\text{HML},\text{RMW},\text{CMA}\}} \hat\beta_{i,k}\, F_{k,t},
+$$
+where $r^e_{i,t}$ is excess return and $\hat\beta_{i,k}$ is estimated by
+OLS on the 36-month window ending at month $t-2$. The forward target used
+throughout is $\alpha_{i,t+1}$ — realised alpha one month ahead — attached
+to the row at month $t$.
+
+## 2.3 Features
+
+The feature vector at month $t$ contains:
+
+- Cross-sectionally z-scored FF5 betas (`z_beta_*`), ranking each stock
+  against the cross-section at the same date.
+- 12-1 momentum (cumulative return from $t-12$ to $t-2$), 12-month vol of
+  excess returns, and log market cap lagged one month.
+- Lagged macro: 10-year Treasury yield, Fed funds rate, VIX — each lagged
+  one month.
+- Lagged FF5 returns (`mkt_rf_lag`, `smb_lag`, `hml_lag`, `rmw_lag`,
+  `cma_lag`) — each lagged `r CFG$ff_lag_months` months to honour the
+  publication delay.
+
+## 2.4 Evaluation
+
+Train: January 2018 – December 2022 (after the 36-month rolling-beta
+warm-up consumes 2014–2017). Holdout: January 2023 – December 2024. All
+metrics report on the holdout.
+
+# 3. Data assembly
+
+## 3.1 Pull CRSP / CCM-linked classification data
+
+Historical S&P 500 membership, monthly returns adjusted for delisting,
+historical SIC codes, and GICS via the CRSP/Compustat Merged (CCM) linkage.
+The return panel is CRSP-based, while GICS classifications enter through the
+CCM/Compustat link, so this section uses the broader label "CRSP / CCM-linked"
+rather than treating the pull as purely one database.
+
+```{r pull-crsp}
+# pull_crsp_all() may print internal WRDS status messages from helper scripts.
+# We suppress those messages here so the rendered report wording remains
+# consistent with the actual data source description above.
+crsp <- local({
+  capture.output(obj <- pull_crsp_all())
+  obj
+})
+```
+
+```{r}
+crsp$members |>
+  summarise(
+    spans = n(),
+    permnos = n_distinct(permno),
+    earliest_start = min(start),
+    latest_end = max(end_date)
+  ) |>
+  kable(caption = "S&P 500 membership spans")
+```
+
+```{r}
+crsp$monthly |>
+  summarise(
+    rows = n(),
+    permnos = n_distinct(permno),
+    months = n_distinct(date_eom),
+    delisting_obs = sum(!is.na(dlret)),
+    pct_ret_present = mean(!is.na(ret))
+  ) |>
+  kable(digits = 3, caption = "Monthly return panel")
+```
+
+## 3.2 Pull Ken French
+
+```{r pull-french}
+french <- pull_french_all()
+```
+
+```{r}
+bind_rows(head(french$ff5, 3), tail(french$ff5, 3)) |>
+  kable(digits = 4, caption = "FF5 factors — head and tail")
+```
+
+```{r}
+french$ff12_def |>
+  group_by(industry_num, industry_code, industry_name) |>
+  summarise(n_sic_ranges = n(), .groups = "drop") |>
+  arrange(industry_num) |>
+  kable(caption = "FF12 industry definitions")
+```
+
+## 3.3 Pull FRED
+
+```{r pull-fred}
+fred <- pull_fred_all()
+```
+
+```{r}
+fred |>
+  summarise(
+    months = n(),
+    earliest = min(date_eom),
+    latest   = max(date_eom),
+    pct_ten_y = mean(!is.na(ten_y)),
+    pct_ffr   = mean(!is.na(ffr)),
+    pct_vix   = mean(!is.na(vix))
+  ) |>
+  kable(digits = 3, caption = "FRED macro coverage")
+```
+
+## 3.4 Build the panel
+
+```{r build-panel}
+panel <- build_panel(crsp, french, fred)
+```
+
+```{r}
+panel |>
+  summarise(
+    rows = n(),
+    permnos = n_distinct(permno),
+    months  = n_distinct(date_eom),
+    pct_ret_excess = mean(!is.na(ret_excess)),
+    pct_gics       = mean(!is.na(gsector)),
+    pct_ff12       = mean(!is.na(ff12_num)),
+    pct_macro      = mean(!is.na(ten_y) & !is.na(ffr) & !is.na(vix))
+  ) |>
+  kable(digits = 3, caption = "Master panel coverage")
+```
+
+```{r}
+recent <- max(panel$date_eom)
+panel |>
+  filter(date_eom == recent, !is.na(gics_sector_name)) |>
+  dplyr::count(gics_sector_name, sort = TRUE) |>
+  kable(caption = paste0("GICS sector distribution at ", recent))
+```
+
+```{r}
+panel |>
+  filter(date_eom == recent, !is.na(ff12_code)) |>
+  dplyr::count(ff12_num, ff12_code, sort = TRUE) |>
+  kable(caption = paste0("FF12 industry distribution at ", recent))
+```
+
+# 4. Feature engineering
+
+```{r features}
+feats <- build_features(panel)
+```
+
+## 4.1 Coverage
+
+```{r}
+feats |>
+  summarise(
+    rows = n(),
+    pct_loadings       = mean(!is.na(beta_mkt)),
+    pct_realized_alpha = mean(!is.na(alpha_realized)),
+    pct_fwd_target     = mean(!is.na(alpha_fwd_1m)),
+    modelable          = mean(!is.na(alpha_fwd_1m) & !is.na(beta_mkt) &
+                              !is.na(mom_12_1) & !is.na(mkt_rf_lag))
+  ) |>
+  kable(digits = 3, caption = "Feature panel coverage")
+```
+
+## 4.2 Anti-leakage tests
+
+The critical invariant: `alpha_fwd_1m` at $(i, t)$ must equal
+`alpha_realized` at $(i, t+1)$ for every paired row. We also verify that
+the lagged FF5 columns match a manual lag operation.
+
+```{r leak-tests}
+leak_results <- run_leakage_tests(feats)
+```
+
+## 4.3 Distributions
+
+```{r alpha-hist}
+#| fig-cap: "Realised monthly alpha — symmetric around zero, fat-tailed."
+feats |>
+  filter(!is.na(alpha_realized)) |>
+  ggplot(aes(alpha_realized)) +
+  geom_histogram(bins = 60, fill = "#2E75B6", alpha = 0.85) +
+  labs(x = expression(alpha == r^e - beta %.% F), y = "count")
+```
+
+```{r beta-hist}
+#| fig-cap: "FF5 betas across the panel — mostly market-driven."
+feats |>
+  filter(!is.na(beta_mkt)) |>
+  select(beta_mkt, beta_smb, beta_hml, beta_rmw, beta_cma) |>
+  pivot_longer(everything(), names_to = "factor", values_to = "loading") |>
+  ggplot(aes(loading)) +
+  geom_histogram(bins = 50, fill = "#1F4E79", alpha = 0.85) +
+  facet_wrap(~ factor, scales = "free", ncol = 5) +
+  labs(x = NULL, y = NULL)
+```
+
+# 5. Clustering on return co-movement
+
+K-Means is fit at the end of each year on the prior sixty months; the
+assignment is applied to all twelve months of the following calendar year.
+
+```{r clustering}
+clust <- build_clusters_annual(panel)
+```
+
+```{r}
+clust$diag |>
+  kable(digits = 3, caption = "Cluster diagnostics by refit date")
+```
+
+The number of stocks in the clustering diagnostics can be lower than the
+constituent count reported earlier because the embedding requires enough valid
+monthly return history inside the rolling window. Stocks with too few valid
+observations are excluded from a given annual refit rather than being forced
+into a noisy correlation estimate.
+
+```{r cluster-k-plot}
+#| fig-cap: "Chosen k by refit year. The repeated selection of k = 2 is a finding: monthly stock-return co-movement is dominated by a broad two-regime structure rather than many clean industry-like clusters."
+clust$diag |>
+  ggplot(aes(refit_date, k)) +
+  geom_point(size = 2.5, colour = "#C00000") +
+  geom_line(colour = "#C00000") +
+  scale_y_continuous(breaks = 2:10) +
+  labs(x = "refit date (end of year)", y = "chosen k")
+```
+
+The consistent selection of `k = 2` should be read as a substantive result, not
+as a failed attempt to recreate industry sectors. At the monthly horizon, the
+S&P 500 return-correlation matrix appears to be dominated by one broad
+principal axis, broadly interpretable as market-beta or risk-regime exposure.
+That means the K-Means scheme is best interpreted as a coarse cross-sector
+risk-regime split, not as a fine-grained substitute for GICS or SIC/FF12.
+
+# 6. Three-way comparison
+
+```{r merge-clusters}
+feats_g <- attach_clusters(feats, clust$assignments)
+```
+
+## 6.1 Composition
+
+How much do the three groupings overlap?
+
+```{r composition}
+comp <- composition_compare(feats_g)
+comp$ari |>
+  kable(digits = 3, caption = "Adjusted Rand index between scheme pairs")
+```
+
+The adjusted Rand index measures partition similarity, with 1 = identical
+and 0 = random. Values close to zero between GICS or FF12 and the K-Means
+clusters mean the unsupervised partition is genuinely different from the
+industry partitions, which is what we'd want — otherwise it adds nothing.
+
+```{r contingency-gics-cluster}
+comp$contingency$gics_vs_cluster |>
+  as.data.frame.matrix() |>
+  kable(caption = "GICS sector × K-Means cluster (most recent month)")
+```
+
+```{r contingency-ff12-cluster}
+comp$contingency$ff12_vs_cluster |>
+  as.data.frame.matrix() |>
+  kable(caption = "FF12 industry × K-Means cluster (most recent month)")
+```
+
+## 6.2 Within-group homogeneity
+
+A "good" classification produces internally similar members. We measure
+this two ways: the cross-sectional standard deviation of realised alpha
+within each group at each date (lower = more homogeneous in unexplained
+returns), and the mean pairwise correlation of excess returns among
+group members (higher = more co-moving).
+
+```{r homogeneity}
+homo <- homogeneity_compare(feats_g, panel)
+homo |> kable(digits = 4, caption = "Within-group homogeneity by scheme")
+```
+
+Because the K-Means clusters are estimated from return co-movement, they are
+expected to capture broad cross-sector return regimes. However, they do not
+need to dominate GICS or FF12 on every homogeneity statistic. If GICS or FF12
+has a higher `mean_within_corr`, that suggests traditional industry labels
+still form tighter, more interpretable groups, while K-Means may be capturing
+a broader risk/return segmentation instead of narrow industry similarity.
+
+## 6.3 Predictive accuracy
+
+Per-group Elastic Net regressions predict $\alpha_{i,t+1}$ from the
+feature set. We report out-of-sample R², MAE, and directional accuracy on
+the 2023–2024 holdout, weighted by group size.
+
+```{r prediction}
+pred <- prediction_compare(feats_g)
+pred$aggregate |>
+  arrange(desc(r2_oos_weighted)) |>
+  kable(digits = 4, caption = "Aggregate prediction metrics by scheme")
+```
+
+```{r prediction-per-group, fig.height=6}
+pred$per_group |>
+  ggplot(aes(reorder(group, r2_oos), r2_oos, fill = scheme)) +
+  geom_col() +
+  coord_flip() +
+  facet_wrap(~ scheme, scales = "free_y") +
+  labs(x = NULL, y = "out-of-sample R²", fill = NULL,
+       title = "OOS R² per group, by scheme") +
+  scale_fill_manual(values = c(GICS = "#1F4E79", FF12 = "#2E75B6", Cluster = "#C00000")) +
+  theme(legend.position = "none")
+```
+
+The pooled baseline (no grouping) gives a single all-stocks Elastic Net.
+In this full-panel render, the Cluster scheme is the only grouped model that
+beats the pooled baseline on both out-of-sample R² and directional accuracy,
+even though the margin is modest. This is important because the K-Means model
+uses only a coarse two-cluster split, so it adds forecasting structure without
+fragmenting the training data into as many small industry-specific regressions
+as GICS or FF12. The negative R² values still show that alpha forecasting is
+difficult overall, but the relative ranking suggests that a broad co-movement
+risk-regime split can be more useful for prediction than finer industry labels
+when the per-stock signal is weak.
+
+## 6.4 Anomaly detection
+
+Isolation Forest is trained per group on the train window and scored on
+the holdout; the most anomalous five percent are flagged. We then look at
+average forward alpha at one, three, and six months for flagged versus
+non-flagged stocks.
+
+```{r anomalies}
+anom <- anomaly_compare(feats_g)
+```
+
+```{r anomaly-fwd-table}
+anom$fwd_compare |>
+  arrange(scheme, horizon, flagged) |>
+  kable(digits = 4,
+        caption = "Mean forward alpha for flagged vs. non-flagged stocks, by scheme and horizon")
+```
+
+```{r anomaly-fwd-plot}
+#| fig-cap: "Forward alpha gap (flagged minus non-flagged) by horizon. A negative bar at +1m would suggest flagged stocks subsequently underperform on a risk-adjusted basis — the mispricing reading."
+anom$fwd_compare |>
+  group_by(scheme, horizon) |>
+  summarise(
+    gap = mean_fwd_alpha[flagged] - mean_fwd_alpha[!flagged],
+    .groups = "drop"
+  ) |>
+  ggplot(aes(factor(horizon), gap, fill = scheme)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_hline(yintercept = 0) +
+  scale_fill_manual(values = c(GICS = "#1F4E79", FF12 = "#2E75B6", Cluster = "#C00000")) +
+  labs(x = "horizon (months ahead)",
+       y = "mean forward alpha (flagged − non-flagged)", fill = NULL)
+```
+
+The anomaly results provide the clearest economic story in the report. The
+flagged portfolios generally earn more negative subsequent alpha than the
+non-flagged portfolios, especially at the one-month horizon and with evidence
+that the gap can persist out to six months. This supports the interpretation
+that the Isolation Forest is not merely identifying random outliers; it is
+flagging stocks whose recent behavior is followed by economically meaningful
+underperformance on a risk-adjusted basis.
+
+```{r anomaly-overlap}
+anom$flag_overlap |>
+  filter(a != b) |>
+  kable(digits = 3,
+        caption = "Pairwise Jaccard overlap of flagged (permno, date_eom) keys")
+```
+
+# 7. Discussion
+
+The main result is deliberately nuanced: K-Means clusters are meaningfully
+different from GICS and FF12, and they add modest forecasting structure relative
+to the pooled baseline, but they are not automatically superior to traditional
+industry classifications. The strongest economic result comes from anomaly
+detection: stocks flagged as unusual tend to underperform non-flagged stocks on
+subsequent risk-adjusted returns. The right conclusion is that classification
+choice changes the prediction and anomaly-detection problem, not that ML
+clustering universally replaces GICS or SIC-based labels.
+
+The four-dimensional comparison gives a more complete answer than any
+single metric:
+
+- **Composition.** Low Rand-index values between K-Means and either of
+  the industry schemes confirm that the unsupervised clustering finds
+  structure that is not reducible to industry codes. The GICS-FF12 ARI is
+  expected to be the highest of the three pairs — both partitions are
+  ultimately built around the same notion of what a firm "does."
+- **Homogeneity.** Co-movement clusters are constructed from return-correlation
+  information, but the K-Means solution can still be broader than traditional
+  industry groups. If GICS or FF12 has higher `mean_within_corr`, the result
+  should not be read as a failure of the ML approach; it means industry labels
+  remain strong for narrow co-movement and interpretability, while K-Means is
+  identifying a different, more cross-sector segmentation. The alpha-dispersion
+  comparison is also important because it asks whether a grouping organizes
+  *unexplained* return behavior, not just raw return similarity.
+- **Prediction.** The Cluster model is the only grouped scheme that beats
+  the pooled baseline on both out-of-sample R² and directional accuracy in
+  this render. GICS and FF12 remain useful and interpretable, but their finer
+  partitions can pay a bias-variance cost because each sector or industry
+  regression has less training data. The practical interpretation is that a
+  coarse co-movement split captures broad risk-regime structure that the pooled
+  model misses without over-fragmenting the sample.
+- **Anomalies.** The anomaly analysis is the most concrete economic result.
+  Stocks flagged as unusual subsequently earn more negative forward alpha than
+  non-flagged stocks, especially at the one-month horizon, and the gap does not
+  disappear immediately at longer horizons. The overlap table also shows that
+  the three schemes do not flag exactly the same stocks, so the grouping choice
+  changes which names are treated as abnormal rather than merely changing the
+  label attached to the same outlier set.
+
+Two caveats remain. First, even though this version is rendered with the
+larger S&P 500 panel rather than the earlier 50-stock dev sample, the results
+should still be interpreted as a proof-of-concept classification experiment
+rather than a deployable trading model. Second, the alpha computation is itself
+dependent on the FF5 specification — alpha that the FF5 model fails to absorb
+might still be priced by extensions such as momentum, quality, or short-term
+reversal. Our anomaly definition is therefore "FF5-residual," not "genuinely
+unexplained."
+
+# 8. Limitations and next steps
+
+- **Universe and robustness.** This version is rendered with `CFG$dev_mode = FALSE`,
+  so the 50-stock development sample is no longer the basis for the reported
+  results. The next step is not simply a larger run, but robustness testing
+  across alternative sample periods, cluster counts, and feature windows.
+- **Cluster stability.** The annual-refit + Hungarian-matching pipeline
+  keeps cluster IDs stable but doesn't guarantee that the underlying
+  groupings are stable. A robustness check that varies the refit window
+  (say, 36 vs. 60 vs. 84 months) would be useful.
+- **Alternative anomaly horizons.** Six months is the longest forward
+  horizon we report. Some mispricing-reversion stories play out over a
+  year or longer; extending the horizon would test those.
+- **Sector-conditional clustering.** A natural follow-up is K-Means
+  *within* GICS sectors — does sub-sectoral clustering find structure
+  that flat clustering misses?
+
+# Outputs
+
+```{r outputs-table}
+list.files(c(PATHS$raw, PATHS$processed),
+           pattern = "\\.parquet$", full.names = TRUE) |>
+  tibble(file = _) |>
+  mutate(size_kb = round(file.size(file) / 1024, 1)) |>
+  kable()
+```
