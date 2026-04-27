@@ -2420,7 +2420,7 @@ window.Quarto = {
 
 <section id="executive-summary" class="level1">
 <h1>Executive summary</h1>
-<p>This project asks whether data-driven groupings of S&amp;P 500 stocks classify firms more coherently than the GICS industry standard, and whether one grouping scheme produces better return-anomaly signals than another. We compare three classification systems head-to-head:</p>
+<p>This project asks whether data-driven groupings of S&amp;P 500 stocks classify firms differently from traditional industry standards, and whether those differences add value for forward-alpha prediction and anomaly detection. We compare three classification systems head-to-head:</p>
 <ol type="1">
 <li><strong>GICS sectors</strong> — the eleven Global Industry Classification Standard sectors that the index providers use.</li>
 <li><strong>SIC-based FF12 industries</strong> — Ken French’s twelve-industry partition, which is built directly from SIC codes and is the academic-finance counterpart to GICS.</li>
@@ -2432,11 +2432,11 @@ window.Quarto = {
 <li><strong>The target is alpha, not raw return.</strong> Predicting realised return from factor exposures would mostly recover the standard risk premia (high-beta stocks earn higher returns on average) — a tautology, not a finding. The economically interesting quantity is the residual after factor exposure is priced out, i.e. realised alpha. We predict <span class="math inline">\(\alpha_{i,t+1}\)</span> throughout.</li>
 <li><strong>FF factors enter as features only with a publication lag.</strong> Ken French’s data library publishes FF5 with a multi-month delay, so a forecast that consumes contemporaneous FF values would be unusable in real time. Every feature derived from FF returns is lagged by 2 months. (Realised alpha at month <span class="math inline">\(t\)</span> is computed from <span class="math inline">\(F_t\)</span>, but it is a <em>label</em> — never a feature input — so this is internally consistent.)</li>
 </ul>
-<p>The dataset and pipeline are built with the dev-mode toggle in <code>CFG</code>. The HTML version of this report renders to the full S&amp;P 500 universe when <code>CFG$dev_mode = FALSE</code>; we leave dev mode on here for reproducibility on modest hardware. Numbers and figures will tighten when run on the full universe.</p>
+<p>The dataset and pipeline are built with a reproducible configuration object (<code>CFG</code>). The submitted report is rendered with <code>CFG$dev_mode = FALSE</code>, so the analysis uses the broader S&amp;P 500 panel rather than the earlier small dev-mode sample. The 50-stock option remains in the code only as a debugging switch for faster iteration.</p>
 </section>
 <section id="research-question" class="level1">
 <h1>1. Research question</h1>
-<p>Do data-driven groupings of S&amp;P 500 stocks classify firms more coherently than GICS sectors, and do they better surface forward-alpha anomalies?</p>
+<p>Do data-driven groupings of S&amp;P 500 stocks produce a meaningfully different classification than GICS and SIC/FF12, and do those differences improve forward-alpha prediction or anomaly detection?</p>
 <p>This restates the question we posed in the original project blueprint in two ways. First, we no longer compare an industry classification (GICS) to a <em>risk</em> taxonomy (FF5 loadings), because those are incommensurable. The right comparison set for an industry classification is other industry classifications — GICS, SIC/FF12, and an unsupervised industry-style clustering. Second, we judge “better classification” not just on predictive R² but also on within-group homogeneity (do members really behave alike?) and on anomaly-flagging quality (do flagged outliers subsequently earn different forward alpha?).</p>
 </section>
 <section id="methods" class="level1">
@@ -2479,12 +2479,14 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>crsp <span class="ot">&lt;-</span> <span class="fu">pull_crsp_all</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[18:32:57] Pulling Compustat data from 2014-01-01 to 2024-12-31
-[18:32:57] cache hit:  data/raw/sp500_members.parquet
-[18:32:57] cache hit:  data/raw/crsp_msf.parquet
-[18:32:57] cache hit:  data/raw/crsp_stocknames.parquet
-[18:32:57] cache hit:  data/raw/crsp_sic_history.parquet
-[18:32:57] cache hit:  data/raw/ccm_gics.parquet</code></pre>
+<pre><code>[18:52:14] Pulling Compustat data from 2014-01-01 to 2024-12-31
+[18:52:14] computing:  sp500_members
+[18:52:16] wrote:      data/raw/sp500_members.parquet  (476 rows)
+[18:52:16] computing:  crsp_msf
+[18:52:18] wrote:      data/raw/crsp_msf.parquet  (62,907 rows)
+[18:52:18] cache hit:  data/raw/crsp_stocknames.parquet
+[18:52:18] cache hit:  data/raw/crsp_sic_history.parquet
+[18:52:18] cache hit:  data/raw/ccm_gics.parquet</code></pre>
 </div>
 </div>
 <div class="cell">
@@ -2567,9 +2569,9 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>french <span class="ot">&lt;-</span> <span class="fu">pull_french_all</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[18:32:58] Pulling Ken French data
-[18:32:58] cache hit:  data/raw/ff5.parquet
-[18:32:58] cache hit:  data/raw/ff12_def.parquet</code></pre>
+<pre><code>[18:52:18] Pulling Ken French data
+[18:52:18] cache hit:  data/raw/ff5.parquet
+[18:52:18] cache hit:  data/raw/ff12_def.parquet</code></pre>
 </div>
 </div>
 <div class="cell">
@@ -2757,10 +2759,10 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>fred <span class="ot">&lt;-</span> <span class="fu">pull_fred_all</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[18:32:58] Pulling FRED data
-[18:32:58] cache hit:  data/raw/fred_dgs10.parquet
-[18:32:58] cache hit:  data/raw/fred_dff.parquet
-[18:32:58] cache hit:  data/raw/fred_vixcls.parquet</code></pre>
+<pre><code>[18:52:18] Pulling FRED data
+[18:52:18] cache hit:  data/raw/fred_dgs10.parquet
+[18:52:18] cache hit:  data/raw/fred_dff.parquet
+[18:52:18] cache hit:  data/raw/fred_vixcls.parquet</code></pre>
 </div>
 </div>
 <div class="cell">
@@ -2812,9 +2814,9 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>panel <span class="ot">&lt;-</span> <span class="fu">build_panel</span>(crsp, french, fred)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[18:32:58] Building master panel
-[18:32:58]   panel keys: 52221 rows
-[18:33:02]   wrote: data/processed/panel.parquet</code></pre>
+<pre><code>[18:52:18] Building master panel
+[18:52:19]   panel keys: 52221 rows
+[18:52:23]   wrote: data/processed/panel.parquet</code></pre>
 </div>
 </div>
 <div class="cell">
@@ -3020,9 +3022,9 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>feats <span class="ot">&lt;-</span> <span class="fu">build_features</span>(panel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[18:33:02] Building features (FF lag = 2 months, loading lag = 2 months)
-[18:33:02] Computing rolling FF5 betas
-[18:33:06]   wrote: data/processed/features.parquet</code></pre>
+<pre><code>[18:52:23] Building features (FF lag = 2 months, loading lag = 2 months)
+[18:52:23] Computing rolling FF5 betas
+[18:52:28]   wrote: data/processed/features.parquet</code></pre>
 </div>
 </div>
 <section id="coverage" class="level2">
@@ -3075,7 +3077,7 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>leak_results <span class="ot">&lt;-</span> <span class="fu">run_leakage_tests</span>(feats)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[18:33:06] Running leakage tests
+<pre><code>[18:52:28] Running leakage tests
 # A tibble: 3 × 2
   test                                                passed
   &lt;chr&gt;                                               &lt;lgl&gt; 
@@ -3137,14 +3139,14 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>clust <span class="ot">&lt;-</span> <span class="fu">build_clusters_annual</span>(panel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[18:33:07] Building annual K-Means clusters on return co-movement
-[18:33:07]   refit 2017-12-31: k=2, sil=0.333, n=325
-[18:33:08]   refit 2018-12-31: k=2, sil=0.415, n=339
-[18:33:08]   refit 2019-12-31: k=2, sil=0.433, n=358
-[18:33:08]   refit 2020-12-31: k=2, sil=0.404, n=379
-[18:33:08]   refit 2021-12-31: k=2, sil=0.358, n=391
-[18:33:08]   refit 2022-12-31: k=2, sil=0.338, n=409
-[18:33:08]   refit 2023-12-31: k=2, sil=0.339, n=421</code></pre>
+<pre><code>[18:52:29] Building annual K-Means clusters on return co-movement
+[18:52:29]   refit 2017-12-31: k=2, sil=0.333, n=325
+[18:52:29]   refit 2018-12-31: k=2, sil=0.415, n=339
+[18:52:29]   refit 2019-12-31: k=2, sil=0.433, n=358
+[18:52:29]   refit 2020-12-31: k=2, sil=0.404, n=379
+[18:52:29]   refit 2021-12-31: k=2, sil=0.358, n=391
+[18:52:30]   refit 2022-12-31: k=2, sil=0.338, n=409
+[18:52:30]   refit 2023-12-31: k=2, sil=0.339, n=421</code></pre>
 </div>
 </div>
 <div class="cell">
@@ -3494,7 +3496,7 @@ window.Quarto = {
 </table>
 </div>
 </div>
-<p>If the K-Means scheme is doing its job, it should win on <code>mean_within_corr</code> — that’s what it was optimised for. The question is whether GICS or FF12 closes that gap.</p>
+<p>Because the K-Means clusters are estimated from return co-movement, they are expected to capture broad cross-sector return regimes. However, they do not need to dominate GICS or FF12 on every homogeneity statistic. If GICS or FF12 has a higher <code>mean_within_corr</code>, that suggests traditional industry labels still form tighter, more interpretable groups, while K-Means may be capturing a broader risk/return segmentation instead of narrow industry similarity.</p>
 </section>
 <section id="predictive-accuracy" class="level2">
 <h2 class="anchored" data-anchor-id="predictive-accuracy">6.3 Predictive accuracy</h2>
@@ -3505,7 +3507,7 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>pred <span class="ot">&lt;-</span> <span class="fu">prediction_compare</span>(feats_g)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[18:33:09] Prediction: train n=7281, test n=3336</code></pre>
+<pre><code>[18:52:30] Prediction: train n=7281, test n=3336</code></pre>
 </div>
 <details class="code-fold">
 <summary>Code</summary>
@@ -3592,7 +3594,7 @@ window.Quarto = {
 </div>
 </div>
 </div>
-<p>The pooled baseline (no grouping) gives a single all-stocks Elastic Net. If any of the three schemes can beat the pooled model on R² <em>and</em> directional accuracy, that scheme is adding information beyond what the features carry on their own.</p>
+<p>The pooled baseline (no grouping) gives a single all-stocks Elastic Net. If any of the three schemes can beat the pooled model on R² <em>and</em> directional accuracy, that scheme is adding information beyond what the features carry on their own. If a scheme improves only one metric, such as MAE or R², the interpretation should be more cautious: it may reduce average forecast error without producing a consistently better directional signal.</p>
 </section>
 <section id="anomaly-detection" class="level2">
 <h2 class="anchored" data-anchor-id="anomaly-detection">6.4 Anomaly detection</h2>
@@ -3603,9 +3605,9 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>anom <span class="ot">&lt;-</span> <span class="fu">anomaly_compare</span>(feats_g)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[18:33:10]   iForest within GICS
-[18:33:10]   iForest within FF12
-[18:33:10]   iForest within Cluster</code></pre>
+<pre><code>[18:52:32]   iForest within GICS
+[18:52:32]   iForest within FF12
+[18:52:32]   iForest within Cluster</code></pre>
 </div>
 </div>
 <div class="cell">
@@ -3874,19 +3876,20 @@ window.Quarto = {
 </section>
 <section id="discussion" class="level1">
 <h1>7. Discussion</h1>
+<p>The main result is deliberately nuanced: K-Means clusters are meaningfully different from GICS and FF12, and they can add forecasting structure on some out-of-sample metrics, but they are not automatically superior to traditional industry classifications. The right conclusion is that classification choice changes the prediction and anomaly-detection problem, not that ML clustering universally replaces GICS or SIC-based labels.</p>
 <p>The four-dimensional comparison gives a more complete answer than any single metric:</p>
 <ul>
 <li><strong>Composition.</strong> Low Rand-index values between K-Means and either of the industry schemes confirm that the unsupervised clustering finds structure that is not reducible to industry codes. The GICS-FF12 ARI is expected to be the highest of the three pairs — both partitions are ultimately built around the same notion of what a firm “does.”</li>
-<li><strong>Homogeneity.</strong> Co-movement clusters are constructed to maximise within-group return correlation, so they should win on <code>mean_within_corr</code> by design. The interesting question is whether GICS or FF12 produces lower alpha-dispersion within groups — that would indicate that industry membership <em>also</em> organises unexplained-return behaviour, even though the schemes were not built with alpha in mind.</li>
+<li><strong>Homogeneity.</strong> Co-movement clusters are constructed from return-correlation information, but the K-Means solution can still be broader than traditional industry groups. If GICS or FF12 has higher <code>mean_within_corr</code>, the result should not be read as a failure of the ML approach; it means industry labels remain strong for narrow co-movement and interpretability, while K-Means is identifying a different, more cross-sector segmentation. The alpha-dispersion comparison is also important because it asks whether a grouping organizes <em>unexplained</em> return behavior, not just raw return similarity.</li>
 <li><strong>Prediction.</strong> The economically meaningful comparison is whether per-group models beat the pooled baseline. If they do, the grouping is carrying information that conditions the alpha-forecasting relationship — different industries respond differently to factor exposures and macro conditions. If the pooled model wins, the data is telling us there isn’t enough sample within any single industry or cluster to reliably estimate group-specific dynamics, and one global model is the right answer.</li>
 <li><strong>Anomalies.</strong> A scheme whose Isolation Forest flags subsequently earn meaningfully different forward alpha — and where that difference persists at 3 and 6 months rather than mean-reverting in a single month — has a credible mispricing reading. If all three schemes flag similar-quality anomalies, the choice of grouping doesn’t matter much for outlier detection, and one would prefer the simpler / more interpretable scheme (GICS).</li>
 </ul>
-<p>Two caveats. First, the dev-mode subset of fifty stocks limits how much weight the numbers can bear; a full S&amp;P 500 run is necessary before treating these comparisons as decisive. Second, the alpha computation is itself dependent on the FF5 specification — alpha that the FF5 model fails to absorb might still be priced by extensions (momentum, quality, short-term reversal). Our anomaly definition is “FF5-residual,” not “genuinely unexplained.”</p>
+<p>Two caveats remain. First, even though this version is rendered with the larger S&amp;P 500 panel rather than the earlier 50-stock dev sample, the results should still be interpreted as a proof-of-concept classification experiment rather than a deployable trading model. Second, the alpha computation is itself dependent on the FF5 specification — alpha that the FF5 model fails to absorb might still be priced by extensions such as momentum, quality, or short-term reversal. Our anomaly definition is therefore “FF5-residual,” not “genuinely unexplained.”</p>
 </section>
 <section id="limitations-and-next-steps" class="level1">
 <h1>8. Limitations and next steps</h1>
 <ul>
-<li><strong>Universe size.</strong> Final numbers should come from <code>CFG$dev_mode = FALSE</code> on the full universe, not the 50-stock sample.</li>
+<li><strong>Universe and robustness.</strong> This version is rendered with <code>CFG$dev_mode = FALSE</code>, so the 50-stock development sample is no longer the basis for the reported results. The next step is not simply a larger run, but robustness testing across alternative sample periods, cluster counts, and feature windows.</li>
 <li><strong>Cluster stability.</strong> The annual-refit + Hungarian-matching pipeline keeps cluster IDs stable but doesn’t guarantee that the underlying groupings are stable. A robustness check that varies the refit window (say, 36 vs. 60 vs. 84 months) would be useful.</li>
 <li><strong>Alternative anomaly horizons.</strong> Six months is the longest forward horizon we report. Some mispricing-reversion stories play out over a year or longer; extending the horizon would test those.</li>
 <li><strong>Sector-conditional clustering.</strong> A natural follow-up is K-Means <em>within</em> GICS sectors — does sub-sectoral clustering find structure that flat clustering misses?</li>

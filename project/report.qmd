@@ -25,9 +25,10 @@ execute:
 #| include: false
 
 # ============================================================================
-# Project-wide config. Toggle dev_mode for fast iteration on a 50-stock
-# subset. ff_lag_months addresses the FF data publication delay so the
-# pipeline could be deployed in real time.
+# Project-wide config. dev_mode is available for fast iteration on a small
+# 50-stock subset, but the submitted report should be rendered with
+# dev_mode = FALSE. ff_lag_months addresses the FF data publication delay so
+# the pipeline could be deployed in real time.
 # ============================================================================
 
 CFG <- list(
@@ -87,8 +88,8 @@ theme_set(theme_minimal(base_size = 11))
 # Executive summary
 
 This project asks whether data-driven groupings of S&P 500 stocks classify
-firms more coherently than the GICS industry standard, and whether one
-grouping scheme produces better return-anomaly signals than another. We
+firms differently from traditional industry standards, and whether those
+differences add value for forward-alpha prediction and anomaly detection. We
 compare three classification systems head-to-head:
 
 1. **GICS sectors** — the eleven Global Industry Classification Standard
@@ -122,16 +123,17 @@ this project, deserve to be flagged at the top:
   from $F_t$, but it is a *label* — never a feature input — so this is
   internally consistent.)
 
-The dataset and pipeline are built with the dev-mode toggle in `CFG`. The
-HTML version of this report renders to the full S&P 500 universe when
-`CFG$dev_mode = FALSE`; we leave dev mode on here for reproducibility on
-modest hardware. Numbers and figures will tighten when run on the full
-universe.
+The dataset and pipeline are built with a reproducible configuration object
+(`CFG`). The submitted report is rendered with `CFG$dev_mode = FALSE`, so the
+analysis uses the broader S&P 500 panel rather than the earlier small
+dev-mode sample. The 50-stock option remains in the code only as a debugging
+switch for faster iteration.
 
 # 1. Research question
 
-Do data-driven groupings of S&P 500 stocks classify firms more coherently
-than GICS sectors, and do they better surface forward-alpha anomalies?
+Do data-driven groupings of S&P 500 stocks produce a meaningfully different
+classification than GICS and SIC/FF12, and do those differences improve
+forward-alpha prediction or anomaly detection?
 
 This restates the question we posed in the original project blueprint in
 two ways. First, we no longer compare an industry classification (GICS) to
@@ -429,9 +431,12 @@ homo <- homogeneity_compare(feats_g, panel)
 homo |> kable(digits = 4, caption = "Within-group homogeneity by scheme")
 ```
 
-If the K-Means scheme is doing its job, it should win on
-`mean_within_corr` — that's what it was optimised for. The question is
-whether GICS or FF12 closes that gap.
+Because the K-Means clusters are estimated from return co-movement, they are
+expected to capture broad cross-sector return regimes. However, they do not
+need to dominate GICS or FF12 on every homogeneity statistic. If GICS or FF12
+has a higher `mean_within_corr`, that suggests traditional industry labels
+still form tighter, more interpretable groups, while K-Means may be capturing
+a broader risk/return segmentation instead of narrow industry similarity.
 
 ## 6.3 Predictive accuracy
 
@@ -461,7 +466,9 @@ pred$per_group |>
 The pooled baseline (no grouping) gives a single all-stocks Elastic Net.
 If any of the three schemes can beat the pooled model on R² *and*
 directional accuracy, that scheme is adding information beyond what the
-features carry on their own.
+features carry on their own. If a scheme improves only one metric, such as
+MAE or R², the interpretation should be more cautious: it may reduce average
+forecast error without producing a consistently better directional signal.
 
 ## 6.4 Anomaly detection
 
@@ -506,6 +513,13 @@ anom$flag_overlap |>
 
 # 7. Discussion
 
+The main result is deliberately nuanced: K-Means clusters are meaningfully
+different from GICS and FF12, and they can add forecasting structure on some
+out-of-sample metrics, but they are not automatically superior to traditional
+industry classifications. The right conclusion is that classification choice
+changes the prediction and anomaly-detection problem, not that ML clustering
+universally replaces GICS or SIC-based labels.
+
 The four-dimensional comparison gives a more complete answer than any
 single metric:
 
@@ -514,12 +528,14 @@ single metric:
   structure that is not reducible to industry codes. The GICS-FF12 ARI is
   expected to be the highest of the three pairs — both partitions are
   ultimately built around the same notion of what a firm "does."
-- **Homogeneity.** Co-movement clusters are constructed to maximise
-  within-group return correlation, so they should win on
-  `mean_within_corr` by design. The interesting question is whether GICS
-  or FF12 produces lower alpha-dispersion within groups — that would
-  indicate that industry membership *also* organises unexplained-return
-  behaviour, even though the schemes were not built with alpha in mind.
+- **Homogeneity.** Co-movement clusters are constructed from return-correlation
+  information, but the K-Means solution can still be broader than traditional
+  industry groups. If GICS or FF12 has higher `mean_within_corr`, the result
+  should not be read as a failure of the ML approach; it means industry labels
+  remain strong for narrow co-movement and interpretability, while K-Means is
+  identifying a different, more cross-sector segmentation. The alpha-dispersion
+  comparison is also important because it asks whether a grouping organizes
+  *unexplained* return behavior, not just raw return similarity.
 - **Prediction.** The economically meaningful comparison is whether
   per-group models beat the pooled baseline. If they do, the grouping is
   carrying information that conditions the alpha-forecasting relationship
@@ -536,18 +552,21 @@ single metric:
   for outlier detection, and one would prefer the simpler / more
   interpretable scheme (GICS).
 
-Two caveats. First, the dev-mode subset of fifty stocks limits how much
-weight the numbers can bear; a full S&P 500 run is necessary before
-treating these comparisons as decisive. Second, the alpha computation is
-itself dependent on the FF5 specification — alpha that the FF5 model
-fails to absorb might still be priced by extensions (momentum, quality,
-short-term reversal). Our anomaly definition is "FF5-residual," not
-"genuinely unexplained."
+Two caveats remain. First, even though this version is rendered with the
+larger S&P 500 panel rather than the earlier 50-stock dev sample, the results
+should still be interpreted as a proof-of-concept classification experiment
+rather than a deployable trading model. Second, the alpha computation is itself
+dependent on the FF5 specification — alpha that the FF5 model fails to absorb
+might still be priced by extensions such as momentum, quality, or short-term
+reversal. Our anomaly definition is therefore "FF5-residual," not "genuinely
+unexplained."
 
 # 8. Limitations and next steps
 
-- **Universe size.** Final numbers should come from `CFG$dev_mode = FALSE`
-  on the full universe, not the 50-stock sample.
+- **Universe and robustness.** This version is rendered with `CFG$dev_mode = FALSE`,
+  so the 50-stock development sample is no longer the basis for the reported
+  results. The next step is not simply a larger run, but robustness testing
+  across alternative sample periods, cluster counts, and feature windows.
 - **Cluster stability.** The annual-refit + Hungarian-matching pipeline
   keeps cluster IDs stable but doesn't guarantee that the underlying
   groupings are stable. A robustness check that varies the refit window
