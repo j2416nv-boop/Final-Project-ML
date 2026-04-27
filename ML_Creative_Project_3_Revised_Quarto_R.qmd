@@ -1,0 +1,616 @@
+---
+title: "ML Creative Project 3"
+subtitle: "Do Industry Classifiers Group Stocks Better Than K-Means?"
+author: "Group 8 | University of South Florida"
+date: today
+format:
+  revealjs:
+    theme: [default]
+    slide-number: true
+    toc: true
+    code-fold: true
+    code-line-numbers: false
+    chalkboard: true
+    incremental: false
+    transition: fade
+execute:
+  echo: true
+  warning: false
+  message: false
+  freeze: auto
+editor: visual
+---
+
+```{r setup}
+#| label: setup
+#| include: false
+
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 4.8
+)
+
+set.seed(6776)
+
+library(tidyverse)
+library(lubridate)
+library(DBI)
+library(RPostgres)
+library(dbplyr)
+library(slider)
+library(glmnet)
+library(rsample)
+library(yardstick)
+library(broom)
+library(mclust)
+library(isotree)
+library(knitr)
+```
+
+## Revised Question
+
+**Old direction:** compare GICS sectors to Fama-French factor exposures.
+
+**Issue:** factor exposures are risk explanations, not labels. If high exposure groups earn high returns, that may just reflect risk compensation.
+
+**Revised direction:** compare **GICS**, **SIC**, and **K-means clusters** as stock grouping systems.
+
+**Main question:** Which grouping system best captures return behavior and abnormal-return signals out of sample?
+
+::: notes
+This directly responds to the professor's feedback: do not treat Fama-French factors as the classifier benchmark. Use them as risk controls and lagged forecasting inputs only.
+:::
+
+## Professor Feedback Built Into the Design
+
+1.  **No look-ahead in Fama-French data**\
+    Use lagged Fama-French factors and lagged rolling exposures only.
+
+2.  **Separate risk premium from anomaly**\
+    Evaluate future returns as **risk-adjusted abnormal returns**, not just raw returns.
+
+3.  **Better classifier comparison**\
+    Compare GICS to SIC and unsupervised K-means clusters.
+
+## Final Deliverable Format
+
+This file is a **Quarto RevealJS presentation**.
+
+Render with:
+
+```{bash}
+#| eval: false
+quarto render ML_Creative_Project_3_Revised_Quarto_R.qmd
+```
+
+Optional report version:
+
+```{bash}
+#| eval: false
+quarto render ML_Creative_Project_3_Revised_Quarto_R.qmd --to html
+quarto render ML_Creative_Project_3_Revised_Quarto_R.qmd --to pdf
+```
+
+## Data Sources
+
+| Data | Source | Main Use |
+|------------------------|------------------------|------------------------|
+| CRSP monthly stock returns | WRDS / CRSP | Return panel and delisting-adjusted returns |
+| Company identifiers | WRDS / CRSP + Compustat | GICS and SIC classifications |
+| Fama-French 5 factors | Ken French Data Library | Risk adjustment and lagged controls |
+| Optional macro variables | FRED | Robustness only |
+
+## Analysis Window
+
+```{r config}
+#| label: config
+#| eval: false
+
+start_date <- ymd("2000-01-01")
+end_date   <- ymd("2024-12-31")
+
+train_end  <- ymd("2017-12-31")
+valid_end  <- ymd("2020-12-31")
+test_start <- ymd("2021-01-01")
+
+# Professor's data-hiatus concern:
+# We only allow Fama-French information that would have been available with delay.
+ff_lag_months <- 2
+rolling_window_months <- 36
+minimum_window_months <- 24
+```
+
+## WRDS Connection
+
+```{r wrds-connection}
+#| label: wrds-connection
+#| eval: false
+
+wrds_con <- dbConnect(
+  RPostgres::Postgres(),
+  host = "wrds-pgdata.wharton.upenn.edu",
+  port = 9737,
+  dbname = "wrds",
+  sslmode = "require",
+  user = Sys.getenv("WRDS_USER"),
+  password = Sys.getenv("WRDS_PASSWORD")
+)
+```
+
+## Pull CRSP Returns
+
+```{r crsp-query}
+#| label: crsp-query
+#| eval: false
+
+crsp_msf <- tbl(wrds_con, in_schema("crsp", "msf"))
+crsp_names <- tbl(wrds_con, in_schema("crsp", "msenames"))
+
+returns_raw <- crsp_msf |>
+  filter(date >= !!start_date, date <= !!end_date) |>
+  select(permno, date, ret, dlret, prc, shrout) |>
+  collect() |>
+  mutate(
+    date = floor_date(as.Date(date), "month"),
+    ret = as.numeric(ret),
+    dlret = as.numeric(dlret),
+    ret_adj = coalesce(ret, 0) + coalesce(dlret, 0) + coalesce(ret, 0) * coalesce(dlret, 0),
+    mkt_cap = abs(as.numeric(prc)) * as.numeric(shrout)
+  ) |>
+  filter(!is.na(ret_adj), mkt_cap > 0)
+```
+
+## Pull SIC Codes
+
+```{r sic-query}
+#| label: sic-query
+#| eval: false
+
+sic_panel <- crsp_names |>
+  select(permno, namedt, nameendt, siccd, exchcd, shrcd) |>
+  collect() |>
+  mutate(
+    namedt = as.Date(namedt),
+    nameendt = as.Date(nameendt),
+    nameendt = coalesce(nameendt, ymd("2099-12-31")),
+    sic2 = floor(as.numeric(siccd) / 100)
+  )
+```
+
+## Pull GICS Codes
+
+```{r gics-query}
+#| label: gics-query
+#| eval: false
+
+# Depending on WRDS access, GICS may be available from Compustat company/security tables.
+# First inspect available tables if needed:
+# tbl(wrds_con, I("information_schema.tables")) |>
+#   filter(table_schema %in% c("comp", "comp_na_daily_all")) |>
+#   select(table_schema, table_name) |>
+#   collect()
+
+comp_company <- tbl(wrds_con, in_schema("comp", "company"))
+
+company_gics <- comp_company |>
+  select(gvkey, conm, sic, gsector, ggroup, gind, gsubind) |>
+  collect() |>
+  mutate(
+    gics_sector = as.character(gsector),
+    sic2_comp = floor(as.numeric(sic) / 100)
+  )
+```
+
+## Fama-French Factors
+
+```{r fama-french}
+#| label: fama-french
+#| eval: false
+
+ff_url <- "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_5_Factors_2x3_CSV.zip"
+
+ff_zip <- tempfile(fileext = ".zip")
+download.file(ff_url, ff_zip, mode = "wb")
+ff_file <- unzip(ff_zip, list = TRUE)$Name[1]
+ff_text <- readLines(unz(ff_zip, ff_file))
+
+start_row <- which(str_detect(ff_text, "^,Mkt-RF")) + 1
+end_row <- which(str_detect(ff_text, "^ Annual Factors")) - 1
+
+ff <- read_csv(
+  paste(ff_text[start_row:end_row], collapse = "\n"),
+  col_names = c("yyyymm", "mkt_rf", "smb", "hml", "rmw", "cma", "rf"),
+  show_col_types = FALSE
+) |>
+  mutate(
+    date = ymd(paste0(yyyymm, "01")),
+    across(c(mkt_rf, smb, hml, rmw, cma, rf), ~ as.numeric(.x) / 100)
+  ) |>
+  select(date, mkt_rf, smb, hml, rmw, cma, rf) |>
+  arrange(date)
+
+# Data-hiatus design: factors are lagged by ff_lag_months.
+ff_lagged <- ff |>
+  arrange(date) |>
+  mutate(
+    across(
+      c(mkt_rf, smb, hml, rmw, cma, rf),
+      ~ lag(.x, ff_lag_months),
+      .names = "{.col}_lag"
+    )
+  )
+```
+
+## Build Modeling Panel
+
+```{r panel}
+#| label: panel
+#| eval: false
+
+panel <- returns_raw |>
+  left_join(ff_lagged, by = "date") |>
+  mutate(
+    ret_excess = ret_adj - rf_lag,
+    forward_excess_1m = lead(ret_excess, 1),
+    forward_excess_3m = slide_dbl(lead(ret_excess, 1), prod, .before = 0, .after = 2, .complete = TRUE) - 1,
+    forward_excess_6m = slide_dbl(lead(ret_excess, 1), prod, .before = 0, .after = 5, .complete = TRUE) - 1
+  ) |>
+  group_by(permno) |>
+  arrange(date, .by_group = TRUE) |>
+  mutate(
+    size_lag = lag(log(mkt_cap)),
+    mom_12_2 = lag(slide_dbl(1 + ret_adj, prod, .before = 11, .after = -2, .complete = TRUE) - 1),
+    vol_12 = lag(slide_dbl(ret_adj, sd, .before = 11, .complete = TRUE))
+  ) |>
+  ungroup()
+```
+
+## Rolling Factor Exposures
+
+```{r rolling-exposures}
+#| label: rolling-exposures
+#| eval: false
+
+estimate_exposure <- function(df) {
+  df <- drop_na(df, ret_excess, mkt_rf_lag, smb_lag, hml_lag, rmw_lag, cma_lag)
+  if (nrow(df) < minimum_window_months) return(tibble(alpha = NA_real_, beta_mkt = NA_real_, beta_smb = NA_real_, beta_hml = NA_real_, beta_rmw = NA_real_, beta_cma = NA_real_))
+
+  fit <- lm(ret_excess ~ mkt_rf_lag + smb_lag + hml_lag + rmw_lag + cma_lag, data = df)
+  co <- coef(fit)
+
+  tibble(
+    alpha = unname(co["(Intercept)"]),
+    beta_mkt = unname(co["mkt_rf_lag"]),
+    beta_smb = unname(co["smb_lag"]),
+    beta_hml = unname(co["hml_lag"]),
+    beta_rmw = unname(co["rmw_lag"]),
+    beta_cma = unname(co["cma_lag"])
+  )
+}
+
+exposures <- panel |>
+  arrange(permno, date) |>
+  group_by(permno) |>
+  group_modify(~ {
+    .x |>
+      mutate(row_id = row_number()) |>
+      group_by(row_id) |>
+      group_modify(~ {
+        this_date <- .x$date[1]
+        hist <- panel |>
+          filter(permno == .x$permno[1], date < this_date, date >= this_date %m-% months(rolling_window_months))
+        estimate_exposure(hist)
+      }) |>
+      ungroup() |>
+      bind_cols(.x |> select(date))
+  }) |>
+  ungroup()
+
+panel_features <- panel |>
+  left_join(exposures, by = c("permno", "date")) |>
+  drop_na(size_lag, mom_12_2, vol_12, beta_mkt, beta_smb, beta_hml, beta_rmw, beta_cma)
+```
+
+## Split Data
+
+```{r split}
+#| label: split
+#| eval: false
+
+train <- panel_features |> filter(date <= train_end)
+valid <- panel_features |> filter(date > train_end, date <= valid_end)
+test  <- panel_features |> filter(date >= test_start)
+```
+
+## K-Means Groups
+
+```{r kmeans}
+#| label: kmeans
+#| eval: false
+
+cluster_vars <- c("size_lag", "mom_12_2", "vol_12", "beta_mkt", "beta_smb", "beta_hml", "beta_rmw", "beta_cma")
+
+scale_fit <- train |>
+  select(all_of(cluster_vars)) |>
+  scale()
+
+k_grid <- 4:12
+wss <- map_dbl(k_grid, ~ kmeans(scale_fit, centers = .x, nstart = 25)$tot.withinss)
+
+chosen_k <- 8
+km_fit <- kmeans(scale_fit, centers = chosen_k, nstart = 50)
+
+train_clusters <- train |>
+  mutate(cluster = factor(km_fit$cluster))
+
+assign_cluster <- function(new_data, centers, vars) {
+  x <- scale(new_data |> select(all_of(vars)),
+             center = attr(scale_fit, "scaled:center"),
+             scale = attr(scale_fit, "scaled:scale"))
+  distances <- as.matrix(dist(rbind(centers, x)))[-(1:nrow(centers)), 1:nrow(centers), drop = FALSE]
+  factor(max.col(-distances))
+}
+
+valid_clusters <- valid |> mutate(cluster = assign_cluster(valid, km_fit$centers, cluster_vars))
+test_clusters  <- test  |> mutate(cluster = assign_cluster(test,  km_fit$centers, cluster_vars))
+```
+
+## Classifier Comparison
+
+```{r classifier-comparison}
+#| label: classifier-comparison
+#| eval: false
+
+comparison_data <- test_clusters |>
+  filter(!is.na(gics_sector), !is.na(sic2), !is.na(cluster))
+
+ari_gics_sic <- adjustedRandIndex(comparison_data$gics_sector, comparison_data$sic2)
+ari_gics_km  <- adjustedRandIndex(comparison_data$gics_sector, comparison_data$cluster)
+ari_sic_km   <- adjustedRandIndex(comparison_data$sic2, comparison_data$cluster)
+
+classifier_overlap <- tibble(
+  comparison = c("GICS vs SIC", "GICS vs K-means", "SIC vs K-means"),
+  adjusted_rand_index = c(ari_gics_sic, ari_gics_km, ari_sic_km)
+)
+
+classifier_overlap |> kable(digits = 3)
+```
+
+## Heatmap: GICS vs K-Means
+
+```{r heatmap}
+#| label: heatmap
+#| eval: false
+
+comparison_data |>
+  count(gics_sector, cluster) |>
+  group_by(gics_sector) |>
+  mutate(pct = n / sum(n)) |>
+  ggplot(aes(cluster, gics_sector, fill = pct)) +
+  geom_tile() +
+  scale_fill_continuous(labels = scales::percent) +
+  labs(
+    title = "How K-means clusters map to GICS sectors",
+    x = "K-means cluster",
+    y = "GICS sector",
+    fill = "Within-sector share"
+  ) +
+  theme_minimal()
+```
+
+## Prediction Design
+
+Prediction target: **next-month excess return**.
+
+Models tested:
+
+1.  Controls only\
+2.  Controls + GICS\
+3.  Controls + SIC\
+4.  Controls + K-means cluster\
+5.  Controls + GICS + SIC + K-means
+
+## Elastic Net Utility
+
+```{r elastic-net-utility}
+#| label: elastic-net-utility
+#| eval: false
+
+fit_glmnet_model <- function(train_df, test_df, group_var = NULL) {
+  base_vars <- c("size_lag", "mom_12_2", "vol_12", "beta_mkt", "beta_smb", "beta_hml", "beta_rmw", "beta_cma")
+  rhs <- if (is.null(group_var)) {
+    paste(base_vars, collapse = " + ")
+  } else {
+    paste(c(base_vars, group_var), collapse = " + ")
+  }
+
+  f <- as.formula(paste("forward_excess_1m ~", rhs))
+
+  train_clean <- train_df |> drop_na(forward_excess_1m, all_of(base_vars))
+  test_clean  <- test_df  |> drop_na(forward_excess_1m, all_of(base_vars))
+
+  x_train <- model.matrix(f, train_clean)[, -1]
+  y_train <- train_clean$forward_excess_1m
+  x_test <- model.matrix(f, test_clean)[, -1]
+
+  fit <- cv.glmnet(x_train, y_train, alpha = 0.5, nfolds = 5)
+  pred <- as.numeric(predict(fit, newx = x_test, s = "lambda.min"))
+
+  tibble(
+    actual = test_clean$forward_excess_1m,
+    pred = pred,
+    direction_actual = actual > 0,
+    direction_pred = pred > 0
+  )
+}
+```
+
+## Out-of-Sample Accuracy
+
+```{r prediction-results}
+#| label: prediction-results
+#| eval: false
+
+train_model <- train_clusters
+valid_model <- valid_clusters
+test_model  <- test_clusters
+
+predictions <- list(
+  Controls = fit_glmnet_model(train_model, test_model),
+  GICS = fit_glmnet_model(train_model, test_model, "gics_sector"),
+  SIC = fit_glmnet_model(train_model, test_model, "sic2"),
+  KMeans = fit_glmnet_model(train_model, test_model, "cluster")
+)
+
+model_metrics <- imap_dfr(predictions, ~ {
+  tibble(
+    model = .y,
+    rmse = sqrt(mean((.x$actual - .x$pred)^2, na.rm = TRUE)),
+    mae = mean(abs(.x$actual - .x$pred), na.rm = TRUE),
+    r2_oos = 1 - sum((.x$actual - .x$pred)^2, na.rm = TRUE) / sum((.x$actual - mean(.x$actual, na.rm = TRUE))^2, na.rm = TRUE),
+    directional_accuracy = mean(.x$direction_actual == .x$direction_pred, na.rm = TRUE)
+  )
+})
+
+model_metrics |> arrange(desc(r2_oos)) |> kable(digits = 4)
+```
+
+## Why Raw Return Is Not Enough
+
+Finding that a group earns higher raw returns does **not** prove anomaly.
+
+A group may simply have higher exposure to compensated risk factors.
+
+Therefore, anomaly testing focuses on:
+
+$$\alpha_{i,t+h} = R_{i,t+h} - R_{f,t+h} - \hat{\beta}_{i,t}'F_{t+h}$$
+
+## Risk-Adjusted Forward Alpha
+
+```{r risk-adjusted-alpha}
+#| label: risk-adjusted-alpha
+#| eval: false
+
+test_alpha <- test_clusters |>
+  left_join(ff, by = "date", suffix = c("", "_realized")) |>
+  mutate(
+    expected_factor_return = beta_mkt * mkt_rf + beta_smb * smb + beta_hml * hml + beta_rmw * rmw + beta_cma * cma,
+    abnormal_1m = forward_excess_1m - expected_factor_return
+  )
+```
+
+## Isolation Forest Within Each Classifier
+
+```{r isolation-forest}
+#| label: isolation-forest
+#| eval: false
+
+score_isolation_by_group <- function(df, group_var, vars = cluster_vars) {
+  df |>
+    group_by(across(all_of(group_var))) |>
+    group_modify(~ {
+      if (nrow(.x) < 50) {
+        return(.x |> mutate(anomaly_score = NA_real_, anomaly_flag = FALSE))
+      }
+      x <- .x |> select(all_of(vars)) |> drop_na()
+      if (nrow(x) < 50) {
+        return(.x |> mutate(anomaly_score = NA_real_, anomaly_flag = FALSE))
+      }
+      fit <- isolation.forest(as.matrix(x), ntrees = 100, sample_size = min(256, nrow(x)))
+      scores <- predict(fit, as.matrix(x), type = "score")
+      threshold <- quantile(scores, 0.95, na.rm = TRUE)
+      .x |> mutate(anomaly_score = scores, anomaly_flag = scores >= threshold)
+    }) |>
+    ungroup()
+}
+
+anom_gics <- score_isolation_by_group(test_alpha, "gics_sector") |> mutate(classifier = "GICS")
+anom_sic  <- score_isolation_by_group(test_alpha, "sic2") |> mutate(classifier = "SIC")
+anom_km   <- score_isolation_by_group(test_alpha, "cluster") |> mutate(classifier = "KMeans")
+
+anomalies <- bind_rows(anom_gics, anom_sic, anom_km)
+```
+
+## Anomaly Test
+
+```{r anomaly-test}
+#| label: anomaly-test
+#| eval: false
+
+anomaly_summary <- anomalies |>
+  group_by(classifier, anomaly_flag) |>
+  summarize(
+    n = n(),
+    mean_alpha_1m = mean(abnormal_1m, na.rm = TRUE),
+    median_alpha_1m = median(abnormal_1m, na.rm = TRUE),
+    hit_rate = mean(abnormal_1m > 0, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+anomaly_summary |> kable(digits = 4)
+```
+
+## Bootstrap Confidence Intervals
+
+```{r bootstrap-ci}
+#| label: bootstrap-ci
+#| eval: false
+
+bootstrap_ci <- function(x, statistic = mean, n_boot = 1000) {
+  x <- x[is.finite(x)]
+  sims <- replicate(n_boot, statistic(sample(x, length(x), replace = TRUE)))
+  quantile(sims, c(0.025, 0.975), na.rm = TRUE)
+}
+
+ci_table <- anomalies |>
+  filter(anomaly_flag) |>
+  group_by(classifier) |>
+  summarize(
+    mean_alpha = mean(abnormal_1m, na.rm = TRUE),
+    ci_low = bootstrap_ci(abnormal_1m)[1],
+    ci_high = bootstrap_ci(abnormal_1m)[2],
+    .groups = "drop"
+  )
+
+ci_table |> kable(digits = 4)
+```
+
+## Final Evaluation Questions
+
+1.  How much do GICS, SIC, and K-means overlap?
+2.  Which grouping system gives better out-of-sample return prediction?
+3.  Which grouping system produces anomaly flags with stronger future alpha?
+4.  Are anomalies classifier-specific, or do all systems flag the same firms?
+
+## Expected Interpretation
+
+If K-means beats GICS and SIC, the result suggests that data-driven groupings capture economically meaningful similarities not fully reflected in standard industry codes.
+
+If GICS or SIC wins, the result supports the idea that traditional industry classifications already summarize most relevant similarities.
+
+If no classifier improves alpha prediction, the honest conclusion is that group labels do not add much beyond lagged firm characteristics and factor exposures.
+
+## Project Guardrails
+
+- Use only lagged factors and historical exposures.
+- Train clusters only on the training set.
+- Assign validation/test firms to fixed training clusters.
+- Report raw return results and risk-adjusted alpha results separately.
+- Treat anomaly results as exploratory unless confidence intervals are clearly nonzero.
+
+## Backup Slide: What Changed From the Blueprint?
+
+| Original Plan | Revised Plan |
+|------------------------------------|------------------------------------|
+| Python | R + Quarto |
+| Compare GICS to FF exposures | Compare GICS to SIC and K-means |
+| Raw return anomaly framing | Risk-adjusted alpha framing |
+| FF factors available contemporaneously | FF factors lagged by `ff_lag_months` |
+| Isolation forest only as unusual stock detector | Isolation forest evaluated by future abnormal returns |
+
+## Backup Slide: One-Sentence Pitch
+
+We test whether machine-learned stock clusters classify firms more usefully than traditional GICS or SIC industry labels, using strictly lagged factor information and evaluating success by out-of-sample prediction and future risk-adjusted alpha.
