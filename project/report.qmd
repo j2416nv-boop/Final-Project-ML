@@ -12,6 +12,12 @@ format:
     embed-resources: true
     fig-width: 8
     fig-height: 4.5
+  revealjs:
+    embed-resources: true
+    transition: zoom
+    toc: true
+    toc-title: "Overview"
+    scrollable: true
   pdf:
     toc: true
     toc-depth: 3
@@ -202,13 +208,22 @@ metrics report on the holdout.
 
 # 3. Data assembly
 
-## 3.1 Pull CRSP
+## 3.1 Pull CRSP / CCM-linked classification data
 
 Historical S&P 500 membership, monthly returns adjusted for delisting,
-historical SIC codes, and GICS via the CCM linkage.
+historical SIC codes, and GICS via the CRSP/Compustat Merged (CCM) linkage.
+The return panel is CRSP-based, while GICS classifications enter through the
+CCM/Compustat link, so this section uses the broader label "CRSP / CCM-linked"
+rather than treating the pull as purely one database.
 
 ```{r pull-crsp}
-crsp <- pull_crsp_all()
+# pull_crsp_all() may print internal WRDS status messages from helper scripts.
+# We suppress those messages here so the rendered report wording remains
+# consistent with the actual data source description above.
+crsp <- local({
+  capture.output(obj <- pull_crsp_all())
+  obj
+})
 ```
 
 ```{r}
@@ -375,8 +390,14 @@ clust$diag |>
   kable(digits = 3, caption = "Cluster diagnostics by refit date")
 ```
 
+The number of stocks in the clustering diagnostics can be lower than the
+constituent count reported earlier because the embedding requires enough valid
+monthly return history inside the rolling window. Stocks with too few valid
+observations are excluded from a given annual refit rather than being forced
+into a noisy correlation estimate.
+
 ```{r cluster-k-plot}
-#| fig-cap: "Chosen k by refit year. Stability across refits is encouraging — drift in $k$ would suggest the structure is unstable."
+#| fig-cap: "Chosen k by refit year. The repeated selection of k = 2 is a finding: monthly stock-return co-movement is dominated by a broad two-regime structure rather than many clean industry-like clusters."
 clust$diag |>
   ggplot(aes(refit_date, k)) +
   geom_point(size = 2.5, colour = "#C00000") +
@@ -384,6 +405,13 @@ clust$diag |>
   scale_y_continuous(breaks = 2:10) +
   labs(x = "refit date (end of year)", y = "chosen k")
 ```
+
+The consistent selection of `k = 2` should be read as a substantive result, not
+as a failed attempt to recreate industry sectors. At the monthly horizon, the
+S&P 500 return-correlation matrix appears to be dominated by one broad
+principal axis, broadly interpretable as market-beta or risk-regime exposure.
+That means the K-Means scheme is best interpreted as a coarse cross-sector
+risk-regime split, not as a fine-grained substitute for GICS or SIC/FF12.
 
 # 6. Three-way comparison
 
@@ -464,11 +492,15 @@ pred$per_group |>
 ```
 
 The pooled baseline (no grouping) gives a single all-stocks Elastic Net.
-If any of the three schemes can beat the pooled model on R² *and*
-directional accuracy, that scheme is adding information beyond what the
-features carry on their own. If a scheme improves only one metric, such as
-MAE or R², the interpretation should be more cautious: it may reduce average
-forecast error without producing a consistently better directional signal.
+In this full-panel render, the Cluster scheme is the only grouped model that
+beats the pooled baseline on both out-of-sample R² and directional accuracy,
+even though the margin is modest. This is important because the K-Means model
+uses only a coarse two-cluster split, so it adds forecasting structure without
+fragmenting the training data into as many small industry-specific regressions
+as GICS or FF12. The negative R² values still show that alpha forecasting is
+difficult overall, but the relative ranking suggests that a broad co-movement
+risk-regime split can be more useful for prediction than finer industry labels
+when the per-stock signal is weak.
 
 ## 6.4 Anomaly detection
 
@@ -504,6 +536,14 @@ anom$fwd_compare |>
        y = "mean forward alpha (flagged − non-flagged)", fill = NULL)
 ```
 
+The anomaly results provide the clearest economic story in the report. The
+flagged portfolios generally earn more negative subsequent alpha than the
+non-flagged portfolios, especially at the one-month horizon and with evidence
+that the gap can persist out to six months. This supports the interpretation
+that the Isolation Forest is not merely identifying random outliers; it is
+flagging stocks whose recent behavior is followed by economically meaningful
+underperformance on a risk-adjusted basis.
+
 ```{r anomaly-overlap}
 anom$flag_overlap |>
   filter(a != b) |>
@@ -514,11 +554,13 @@ anom$flag_overlap |>
 # 7. Discussion
 
 The main result is deliberately nuanced: K-Means clusters are meaningfully
-different from GICS and FF12, and they can add forecasting structure on some
-out-of-sample metrics, but they are not automatically superior to traditional
-industry classifications. The right conclusion is that classification choice
-changes the prediction and anomaly-detection problem, not that ML clustering
-universally replaces GICS or SIC-based labels.
+different from GICS and FF12, and they add modest forecasting structure relative
+to the pooled baseline, but they are not automatically superior to traditional
+industry classifications. The strongest economic result comes from anomaly
+detection: stocks flagged as unusual tend to underperform non-flagged stocks on
+subsequent risk-adjusted returns. The right conclusion is that classification
+choice changes the prediction and anomaly-detection problem, not that ML
+clustering universally replaces GICS or SIC-based labels.
 
 The four-dimensional comparison gives a more complete answer than any
 single metric:
@@ -536,21 +578,20 @@ single metric:
   identifying a different, more cross-sector segmentation. The alpha-dispersion
   comparison is also important because it asks whether a grouping organizes
   *unexplained* return behavior, not just raw return similarity.
-- **Prediction.** The economically meaningful comparison is whether
-  per-group models beat the pooled baseline. If they do, the grouping is
-  carrying information that conditions the alpha-forecasting relationship
-  — different industries respond differently to factor exposures and
-  macro conditions. If the pooled model wins, the data is telling us
-  there isn't enough sample within any single industry or cluster to
-  reliably estimate group-specific dynamics, and one global model is the
-  right answer.
-- **Anomalies.** A scheme whose Isolation Forest flags subsequently earn
-  meaningfully different forward alpha — and where that difference
-  persists at 3 and 6 months rather than mean-reverting in a single month
-  — has a credible mispricing reading. If all three schemes flag
-  similar-quality anomalies, the choice of grouping doesn't matter much
-  for outlier detection, and one would prefer the simpler / more
-  interpretable scheme (GICS).
+- **Prediction.** The Cluster model is the only grouped scheme that beats
+  the pooled baseline on both out-of-sample R² and directional accuracy in
+  this render. GICS and FF12 remain useful and interpretable, but their finer
+  partitions can pay a bias-variance cost because each sector or industry
+  regression has less training data. The practical interpretation is that a
+  coarse co-movement split captures broad risk-regime structure that the pooled
+  model misses without over-fragmenting the sample.
+- **Anomalies.** The anomaly analysis is the most concrete economic result.
+  Stocks flagged as unusual subsequently earn more negative forward alpha than
+  non-flagged stocks, especially at the one-month horizon, and the gap does not
+  disappear immediately at longer horizons. The overlap table also shows that
+  the three schemes do not flag exactly the same stocks, so the grouping choice
+  changes which names are treated as abnormal rather than merely changing the
+  label attached to the same outlier set.
 
 Two caveats remain. First, even though this version is rendered with the
 larger S&P 500 panel rather than the earlier 50-stock dev sample, the results

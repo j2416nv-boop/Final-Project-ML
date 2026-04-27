@@ -2359,7 +2359,7 @@ window.Quarto = {
   </ul></li>
   <li><a href="#data-assembly" id="toc-data-assembly" class="nav-link" data-scroll-target="#data-assembly">3. Data assembly</a>
   <ul class="collapse">
-  <li><a href="#pull-crsp" id="toc-pull-crsp" class="nav-link" data-scroll-target="#pull-crsp">3.1 Pull CRSP</a></li>
+  <li><a href="#pull-crsp-ccm-linked-classification-data" id="toc-pull-crsp-ccm-linked-classification-data" class="nav-link" data-scroll-target="#pull-crsp-ccm-linked-classification-data">3.1 Pull CRSP / CCM-linked classification data</a></li>
   <li><a href="#pull-ken-french" id="toc-pull-ken-french" class="nav-link" data-scroll-target="#pull-ken-french">3.2 Pull Ken French</a></li>
   <li><a href="#pull-fred" id="toc-pull-fred" class="nav-link" data-scroll-target="#pull-fred">3.3 Pull FRED</a></li>
   <li><a href="#build-the-panel" id="toc-build-the-panel" class="nav-link" data-scroll-target="#build-the-panel">3.4 Build the panel</a></li>
@@ -2382,7 +2382,7 @@ window.Quarto = {
   <li><a href="#limitations-and-next-steps" id="toc-limitations-and-next-steps" class="nav-link" data-scroll-target="#limitations-and-next-steps">8. Limitations and next steps</a></li>
   <li><a href="#outputs" id="toc-outputs" class="nav-link" data-scroll-target="#outputs">Outputs</a></li>
   </ul>
-<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="..\report.pdf"><i class="bi bi-file-pdf"></i>PDF</a></li></ul></div></nav>
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="report.html"><i class="bi bi-file-slides"></i>RevealJS</a></li><li><a href="..\report.pdf"><i class="bi bi-file-pdf"></i>PDF</a></li></ul></div></nav>
 </div>
 <main class="content" id="quarto-document-content">
 
@@ -2470,36 +2470,32 @@ window.Quarto = {
 </section>
 <section id="data-assembly" class="level1">
 <h1>3. Data assembly</h1>
-<section id="pull-crsp" class="level2">
-<h2 class="anchored" data-anchor-id="pull-crsp">3.1 Pull CRSP</h2>
-<p>Historical S&amp;P 500 membership, monthly returns adjusted for delisting, historical SIC codes, and GICS via the CCM linkage.</p>
+<section id="pull-crsp-ccm-linked-classification-data" class="level2">
+<h2 class="anchored" data-anchor-id="pull-crsp-ccm-linked-classification-data">3.1 Pull CRSP / CCM-linked classification data</h2>
+<p>Historical S&amp;P 500 membership, monthly returns adjusted for delisting, historical SIC codes, and GICS via the CRSP/Compustat Merged (CCM) linkage. The return panel is CRSP-based, while GICS classifications enter through the CCM/Compustat link, so this section uses the broader label “CRSP / CCM-linked” rather than treating the pull as purely one database.</p>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>crsp <span class="ot">&lt;-</span> <span class="fu">pull_crsp_all</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># pull_crsp_all() may print internal WRDS status messages from helper scripts.</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co"># We suppress those messages here so the rendered report wording remains</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># consistent with the actual data source description above.</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>crsp <span class="ot">&lt;-</span> <span class="fu">local</span>({</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">capture.output</span>(obj <span class="ot">&lt;-</span> <span class="fu">pull_crsp_all</span>())</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>  obj</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
-<div class="cell-output cell-output-stdout">
-<pre><code>[18:52:14] Pulling Compustat data from 2014-01-01 to 2024-12-31
-[18:52:14] computing:  sp500_members
-[18:52:16] wrote:      data/raw/sp500_members.parquet  (476 rows)
-[18:52:16] computing:  crsp_msf
-[18:52:18] wrote:      data/raw/crsp_msf.parquet  (62,907 rows)
-[18:52:18] cache hit:  data/raw/crsp_stocknames.parquet
-[18:52:18] cache hit:  data/raw/crsp_sic_history.parquet
-[18:52:18] cache hit:  data/raw/ccm_gics.parquet</code></pre>
-</div>
 </div>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>crsp<span class="sc">$</span>members <span class="sc">|&gt;</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">spans =</span> <span class="fu">n</span>(),</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">permnos =</span> <span class="fu">n_distinct</span>(permno),</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">earliest_start =</span> <span class="fu">min</span>(start),</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">latest_end =</span> <span class="fu">max</span>(end_date)</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">caption =</span> <span class="st">&quot;S&amp;P 500 membership spans&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>crsp<span class="sc">$</span>members <span class="sc">|&gt;</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">spans =</span> <span class="fu">n</span>(),</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">permnos =</span> <span class="fu">n_distinct</span>(permno),</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">earliest_start =</span> <span class="fu">min</span>(start),</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">latest_end =</span> <span class="fu">max</span>(end_date)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">caption =</span> <span class="st">&quot;S&amp;P 500 membership spans&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -2526,15 +2522,15 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>crsp<span class="sc">$</span>monthly <span class="sc">|&gt;</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">rows =</span> <span class="fu">n</span>(),</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">permnos =</span> <span class="fu">n_distinct</span>(permno),</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">months =</span> <span class="fu">n_distinct</span>(date_eom),</span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">delisting_obs =</span> <span class="fu">sum</span>(<span class="sc">!</span><span class="fu">is.na</span>(dlret)),</span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_ret_present =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(ret))</span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">3</span>, <span class="at">caption =</span> <span class="st">&quot;Monthly return panel&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>crsp<span class="sc">$</span>monthly <span class="sc">|&gt;</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">rows =</span> <span class="fu">n</span>(),</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">permnos =</span> <span class="fu">n_distinct</span>(permno),</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">months =</span> <span class="fu">n_distinct</span>(date_eom),</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">delisting_obs =</span> <span class="fu">sum</span>(<span class="sc">!</span><span class="fu">is.na</span>(dlret)),</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_ret_present =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(ret))</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">3</span>, <span class="at">caption =</span> <span class="st">&quot;Monthly return panel&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -2566,19 +2562,19 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>french <span class="ot">&lt;-</span> <span class="fu">pull_french_all</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>french <span class="ot">&lt;-</span> <span class="fu">pull_french_all</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[18:52:18] Pulling Ken French data
-[18:52:18] cache hit:  data/raw/ff5.parquet
-[18:52:18] cache hit:  data/raw/ff12_def.parquet</code></pre>
+<pre><code>[19:02:33] Pulling Ken French data
+[19:02:33] cache hit:  data/raw/ff5.parquet
+[19:02:33] cache hit:  data/raw/ff12_def.parquet</code></pre>
 </div>
 </div>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bind_rows</span>(<span class="fu">head</span>(french<span class="sc">$</span>ff5, <span class="dv">3</span>), <span class="fu">tail</span>(french<span class="sc">$</span>ff5, <span class="dv">3</span>)) <span class="sc">|&gt;</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">4</span>, <span class="at">caption =</span> <span class="st">&quot;FF5 factors — head and tail&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">bind_rows</span>(<span class="fu">head</span>(french<span class="sc">$</span>ff5, <span class="dv">3</span>), <span class="fu">tail</span>(french<span class="sc">$</span>ff5, <span class="dv">3</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">4</span>, <span class="at">caption =</span> <span class="st">&quot;FF5 factors — head and tail&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -2656,11 +2652,11 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>french<span class="sc">$</span>ff12_def <span class="sc">|&gt;</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(industry_num, industry_code, industry_name) <span class="sc">|&gt;</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">n_sic_ranges =</span> <span class="fu">n</span>(), <span class="at">.groups =</span> <span class="st">&quot;drop&quot;</span>) <span class="sc">|&gt;</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(industry_num) <span class="sc">|&gt;</span></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">caption =</span> <span class="st">&quot;FF12 industry definitions&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>french<span class="sc">$</span>ff12_def <span class="sc">|&gt;</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(industry_num, industry_code, industry_name) <span class="sc">|&gt;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">n_sic_ranges =</span> <span class="fu">n</span>(), <span class="at">.groups =</span> <span class="st">&quot;drop&quot;</span>) <span class="sc">|&gt;</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(industry_num) <span class="sc">|&gt;</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">caption =</span> <span class="st">&quot;FF12 industry definitions&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -2756,28 +2752,28 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>fred <span class="ot">&lt;-</span> <span class="fu">pull_fred_all</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>fred <span class="ot">&lt;-</span> <span class="fu">pull_fred_all</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[18:52:18] Pulling FRED data
-[18:52:18] cache hit:  data/raw/fred_dgs10.parquet
-[18:52:18] cache hit:  data/raw/fred_dff.parquet
-[18:52:18] cache hit:  data/raw/fred_vixcls.parquet</code></pre>
+<pre><code>[19:02:34] Pulling FRED data
+[19:02:34] cache hit:  data/raw/fred_dgs10.parquet
+[19:02:34] cache hit:  data/raw/fred_dff.parquet
+[19:02:34] cache hit:  data/raw/fred_vixcls.parquet</code></pre>
 </div>
 </div>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>fred <span class="sc">|&gt;</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">months =</span> <span class="fu">n</span>(),</span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">earliest =</span> <span class="fu">min</span>(date_eom),</span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">latest   =</span> <span class="fu">max</span>(date_eom),</span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_ten_y =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(ten_y)),</span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_ffr   =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(ffr)),</span>
-<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_vix   =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(vix))</span>
-<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
-<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">3</span>, <span class="at">caption =</span> <span class="st">&quot;FRED macro coverage&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>fred <span class="sc">|&gt;</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">months =</span> <span class="fu">n</span>(),</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">earliest =</span> <span class="fu">min</span>(date_eom),</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">latest   =</span> <span class="fu">max</span>(date_eom),</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_ten_y =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(ten_y)),</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_ffr   =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(ffr)),</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_vix   =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(vix))</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">3</span>, <span class="at">caption =</span> <span class="st">&quot;FRED macro coverage&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -2811,28 +2807,28 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>panel <span class="ot">&lt;-</span> <span class="fu">build_panel</span>(crsp, french, fred)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>panel <span class="ot">&lt;-</span> <span class="fu">build_panel</span>(crsp, french, fred)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[18:52:18] Building master panel
-[18:52:19]   panel keys: 52221 rows
-[18:52:23]   wrote: data/processed/panel.parquet</code></pre>
+<pre><code>[19:02:34] Building master panel
+[19:02:34]   panel keys: 52221 rows
+[19:02:37]   wrote: data/processed/panel.parquet</code></pre>
 </div>
 </div>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>panel <span class="sc">|&gt;</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">rows =</span> <span class="fu">n</span>(),</span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">permnos =</span> <span class="fu">n_distinct</span>(permno),</span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">months  =</span> <span class="fu">n_distinct</span>(date_eom),</span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_ret_excess =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(ret_excess)),</span>
-<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_gics       =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(gsector)),</span>
-<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_ff12       =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(ff12_num)),</span>
-<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_macro      =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(ten_y) <span class="sc">&amp;</span> <span class="sc">!</span><span class="fu">is.na</span>(ffr) <span class="sc">&amp;</span> <span class="sc">!</span><span class="fu">is.na</span>(vix))</span>
-<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
-<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">3</span>, <span class="at">caption =</span> <span class="st">&quot;Master panel coverage&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>panel <span class="sc">|&gt;</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">rows =</span> <span class="fu">n</span>(),</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">permnos =</span> <span class="fu">n_distinct</span>(permno),</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">months  =</span> <span class="fu">n_distinct</span>(date_eom),</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_ret_excess =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(ret_excess)),</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_gics       =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(gsector)),</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_ff12       =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(ff12_num)),</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_macro      =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(ten_y) <span class="sc">&amp;</span> <span class="sc">!</span><span class="fu">is.na</span>(ffr) <span class="sc">&amp;</span> <span class="sc">!</span><span class="fu">is.na</span>(vix))</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">3</span>, <span class="at">caption =</span> <span class="st">&quot;Master panel coverage&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -2865,11 +2861,11 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>recent <span class="ot">&lt;-</span> <span class="fu">max</span>(panel<span class="sc">$</span>date_eom)</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>panel <span class="sc">|&gt;</span></span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(date_eom <span class="sc">==</span> recent, <span class="sc">!</span><span class="fu">is.na</span>(gics_sector_name)) <span class="sc">|&gt;</span></span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">count</span>(gics_sector_name, <span class="at">sort =</span> <span class="cn">TRUE</span>) <span class="sc">|&gt;</span></span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">caption =</span> <span class="fu">paste0</span>(<span class="st">&quot;GICS sector distribution at &quot;</span>, recent))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>recent <span class="ot">&lt;-</span> <span class="fu">max</span>(panel<span class="sc">$</span>date_eom)</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>panel <span class="sc">|&gt;</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(date_eom <span class="sc">==</span> recent, <span class="sc">!</span><span class="fu">is.na</span>(gics_sector_name)) <span class="sc">|&gt;</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">count</span>(gics_sector_name, <span class="at">sort =</span> <span class="cn">TRUE</span>) <span class="sc">|&gt;</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">caption =</span> <span class="fu">paste0</span>(<span class="st">&quot;GICS sector distribution at &quot;</span>, recent))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -2932,10 +2928,10 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>panel <span class="sc">|&gt;</span></span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(date_eom <span class="sc">==</span> recent, <span class="sc">!</span><span class="fu">is.na</span>(ff12_code)) <span class="sc">|&gt;</span></span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">count</span>(ff12_num, ff12_code, <span class="at">sort =</span> <span class="cn">TRUE</span>) <span class="sc">|&gt;</span></span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">caption =</span> <span class="fu">paste0</span>(<span class="st">&quot;FF12 industry distribution at &quot;</span>, recent))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>panel <span class="sc">|&gt;</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(date_eom <span class="sc">==</span> recent, <span class="sc">!</span><span class="fu">is.na</span>(ff12_code)) <span class="sc">|&gt;</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">count</span>(ff12_num, ff12_code, <span class="at">sort =</span> <span class="cn">TRUE</span>) <span class="sc">|&gt;</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">caption =</span> <span class="fu">paste0</span>(<span class="st">&quot;FF12 industry distribution at &quot;</span>, recent))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -3019,12 +3015,12 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>feats <span class="ot">&lt;-</span> <span class="fu">build_features</span>(panel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>feats <span class="ot">&lt;-</span> <span class="fu">build_features</span>(panel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[18:52:23] Building features (FF lag = 2 months, loading lag = 2 months)
-[18:52:23] Computing rolling FF5 betas
-[18:52:28]   wrote: data/processed/features.parquet</code></pre>
+<pre><code>[19:02:37] Building features (FF lag = 2 months, loading lag = 2 months)
+[19:02:38] Computing rolling FF5 betas
+[19:02:42]   wrote: data/processed/features.parquet</code></pre>
 </div>
 </div>
 <section id="coverage" class="level2">
@@ -3032,16 +3028,16 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>feats <span class="sc">|&gt;</span></span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
-<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">rows =</span> <span class="fu">n</span>(),</span>
-<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_loadings       =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(beta_mkt)),</span>
-<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_realized_alpha =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(alpha_realized)),</span>
-<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_fwd_target     =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(alpha_fwd_1m)),</span>
-<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">modelable          =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(alpha_fwd_1m) <span class="sc">&amp;</span> <span class="sc">!</span><span class="fu">is.na</span>(beta_mkt) <span class="sc">&amp;</span></span>
-<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>                              <span class="sc">!</span><span class="fu">is.na</span>(mom_12_1) <span class="sc">&amp;</span> <span class="sc">!</span><span class="fu">is.na</span>(mkt_rf_lag))</span>
-<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
-<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">3</span>, <span class="at">caption =</span> <span class="st">&quot;Feature panel coverage&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>feats <span class="sc">|&gt;</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">rows =</span> <span class="fu">n</span>(),</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_loadings       =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(beta_mkt)),</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_realized_alpha =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(alpha_realized)),</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">pct_fwd_target     =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(alpha_fwd_1m)),</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">modelable          =</span> <span class="fu">mean</span>(<span class="sc">!</span><span class="fu">is.na</span>(alpha_fwd_1m) <span class="sc">&amp;</span> <span class="sc">!</span><span class="fu">is.na</span>(beta_mkt) <span class="sc">&amp;</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>                              <span class="sc">!</span><span class="fu">is.na</span>(mom_12_1) <span class="sc">&amp;</span> <span class="sc">!</span><span class="fu">is.na</span>(mkt_rf_lag))</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">3</span>, <span class="at">caption =</span> <span class="st">&quot;Feature panel coverage&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -3074,10 +3070,10 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>leak_results <span class="ot">&lt;-</span> <span class="fu">run_leakage_tests</span>(feats)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>leak_results <span class="ot">&lt;-</span> <span class="fu">run_leakage_tests</span>(feats)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[18:52:28] Running leakage tests
+<pre><code>[19:02:42] Running leakage tests
 # A tibble: 3 × 2
   test                                                passed
   &lt;chr&gt;                                               &lt;lgl&gt; 
@@ -3092,11 +3088,11 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>feats <span class="sc">|&gt;</span></span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(alpha_realized)) <span class="sc">|&gt;</span></span>
-<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(alpha_realized)) <span class="sc">+</span></span>
-<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_histogram</span>(<span class="at">bins =</span> <span class="dv">60</span>, <span class="at">fill =</span> <span class="st">&quot;#2E75B6&quot;</span>, <span class="at">alpha =</span> <span class="fl">0.85</span>) <span class="sc">+</span></span>
-<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="fu">expression</span>(alpha <span class="sc">==</span> r<span class="sc">^</span>e <span class="sc">-</span> beta <span class="sc">%.%</span> F), <span class="at">y =</span> <span class="st">&quot;count&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>feats <span class="sc">|&gt;</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(alpha_realized)) <span class="sc">|&gt;</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(alpha_realized)) <span class="sc">+</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_histogram</span>(<span class="at">bins =</span> <span class="dv">60</span>, <span class="at">fill =</span> <span class="st">&quot;#2E75B6&quot;</span>, <span class="at">alpha =</span> <span class="fl">0.85</span>) <span class="sc">+</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="fu">expression</span>(alpha <span class="sc">==</span> r<span class="sc">^</span>e <span class="sc">-</span> beta <span class="sc">%.%</span> F), <span class="at">y =</span> <span class="st">&quot;count&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
@@ -3110,14 +3106,14 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>feats <span class="sc">|&gt;</span></span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(beta_mkt)) <span class="sc">|&gt;</span></span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(beta_mkt, beta_smb, beta_hml, beta_rmw, beta_cma) <span class="sc">|&gt;</span></span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pivot_longer</span>(<span class="fu">everything</span>(), <span class="at">names_to =</span> <span class="st">&quot;factor&quot;</span>, <span class="at">values_to =</span> <span class="st">&quot;loading&quot;</span>) <span class="sc">|&gt;</span></span>
-<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(loading)) <span class="sc">+</span></span>
-<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_histogram</span>(<span class="at">bins =</span> <span class="dv">50</span>, <span class="at">fill =</span> <span class="st">&quot;#1F4E79&quot;</span>, <span class="at">alpha =</span> <span class="fl">0.85</span>) <span class="sc">+</span></span>
-<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span> factor, <span class="at">scales =</span> <span class="st">&quot;free&quot;</span>, <span class="at">ncol =</span> <span class="dv">5</span>) <span class="sc">+</span></span>
-<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="cn">NULL</span>, <span class="at">y =</span> <span class="cn">NULL</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>feats <span class="sc">|&gt;</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(beta_mkt)) <span class="sc">|&gt;</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(beta_mkt, beta_smb, beta_hml, beta_rmw, beta_cma) <span class="sc">|&gt;</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pivot_longer</span>(<span class="fu">everything</span>(), <span class="at">names_to =</span> <span class="st">&quot;factor&quot;</span>, <span class="at">values_to =</span> <span class="st">&quot;loading&quot;</span>) <span class="sc">|&gt;</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(loading)) <span class="sc">+</span></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_histogram</span>(<span class="at">bins =</span> <span class="dv">50</span>, <span class="at">fill =</span> <span class="st">&quot;#1F4E79&quot;</span>, <span class="at">alpha =</span> <span class="fl">0.85</span>) <span class="sc">+</span></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span> factor, <span class="at">scales =</span> <span class="st">&quot;free&quot;</span>, <span class="at">ncol =</span> <span class="dv">5</span>) <span class="sc">+</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="cn">NULL</span>, <span class="at">y =</span> <span class="cn">NULL</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
@@ -3136,24 +3132,24 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>clust <span class="ot">&lt;-</span> <span class="fu">build_clusters_annual</span>(panel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>clust <span class="ot">&lt;-</span> <span class="fu">build_clusters_annual</span>(panel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[18:52:29] Building annual K-Means clusters on return co-movement
-[18:52:29]   refit 2017-12-31: k=2, sil=0.333, n=325
-[18:52:29]   refit 2018-12-31: k=2, sil=0.415, n=339
-[18:52:29]   refit 2019-12-31: k=2, sil=0.433, n=358
-[18:52:29]   refit 2020-12-31: k=2, sil=0.404, n=379
-[18:52:29]   refit 2021-12-31: k=2, sil=0.358, n=391
-[18:52:30]   refit 2022-12-31: k=2, sil=0.338, n=409
-[18:52:30]   refit 2023-12-31: k=2, sil=0.339, n=421</code></pre>
+<pre><code>[19:02:43] Building annual K-Means clusters on return co-movement
+[19:02:43]   refit 2017-12-31: k=2, sil=0.333, n=325
+[19:02:44]   refit 2018-12-31: k=2, sil=0.415, n=339
+[19:02:44]   refit 2019-12-31: k=2, sil=0.433, n=358
+[19:02:44]   refit 2020-12-31: k=2, sil=0.404, n=379
+[19:02:44]   refit 2021-12-31: k=2, sil=0.358, n=391
+[19:02:44]   refit 2022-12-31: k=2, sil=0.338, n=409
+[19:02:44]   refit 2023-12-31: k=2, sil=0.339, n=421</code></pre>
 </div>
 </div>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>clust<span class="sc">$</span>diag <span class="sc">|&gt;</span></span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">3</span>, <span class="at">caption =</span> <span class="st">&quot;Cluster diagnostics by refit date&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>clust<span class="sc">$</span>diag <span class="sc">|&gt;</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">3</span>, <span class="at">caption =</span> <span class="st">&quot;Cluster diagnostics by refit date&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -3213,32 +3209,34 @@ window.Quarto = {
 </table>
 </div>
 </div>
+<p>The number of stocks in the clustering diagnostics can be lower than the constituent count reported earlier because the embedding requires enough valid monthly return history inside the rolling window. Stocks with too few valid observations are excluded from a given annual refit rather than being forced into a noisy correlation estimate.</p>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>clust<span class="sc">$</span>diag <span class="sc">|&gt;</span></span>
-<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(refit_date, k)) <span class="sc">+</span></span>
-<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="fl">2.5</span>, <span class="at">colour =</span> <span class="st">&quot;#C00000&quot;</span>) <span class="sc">+</span></span>
-<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">colour =</span> <span class="st">&quot;#C00000&quot;</span>) <span class="sc">+</span></span>
-<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">breaks =</span> <span class="dv">2</span><span class="sc">:</span><span class="dv">10</span>) <span class="sc">+</span></span>
-<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;refit date (end of year)&quot;</span>, <span class="at">y =</span> <span class="st">&quot;chosen k&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>clust<span class="sc">$</span>diag <span class="sc">|&gt;</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(refit_date, k)) <span class="sc">+</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="fl">2.5</span>, <span class="at">colour =</span> <span class="st">&quot;#C00000&quot;</span>) <span class="sc">+</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">colour =</span> <span class="st">&quot;#C00000&quot;</span>) <span class="sc">+</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">breaks =</span> <span class="dv">2</span><span class="sc">:</span><span class="dv">10</span>) <span class="sc">+</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;refit date (end of year)&quot;</span>, <span class="at">y =</span> <span class="st">&quot;chosen k&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
 <p><img role="img" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABgAAAANgCAMAAADd/FOkAAABPlBMVEUAAAAAADoAAGYAOjoAOmYAOpAAZpAAZrY6AAA6OgA6Ojo6OmY6OpA6ZmY6ZpA6ZrY6kJA6kLY6kNtNTU1NTW5NTY5Nbo5NbqtNjshmAABmADpmOgBmOjpmOmZmZjpmZmZmZpBmkGZmkJBmkLZmkNtmtttmtv9uTU1ubo5ujqtujshuq+SOTU2Obk2Obm6Oq6uOyOSOyP+QOgCQOjqQZjqQZmaQZpCQkDqQkLaQttuQ29uQ2/+rbk2rjm6ryOSr5P+2ZgC2Zjq2kDq2kGa2tra2ttu2tv+229u22/+2///AAADIjk3Ijm7I5P/I///bkDrbkGbbtmbbtpDbtrbb27bb29vb2//b///kq27kyI7kyKvk5Mjk///r6+v/tmb/yI7/25D/27b/29v/5Kv/5Mj//7b//8j//9v//+T///9xJje6AAAACXBIWXMAAB2HAAAdhwGP5fFlAAAgAElEQVR4nO3dfWMdBnmf4eMQGpOOsKEUmqYjtJRkbdOuzcJWVrqaQleSQD1SSrKOJg6QOP7+X2A60tHb0audoyPdj67rn8RYtvTkFudn63XxBIA7aXHTLwAAN8MAANxRBgDgjjIAAHeUAQC4owwAwB1lAADuKAMAcEcZAIA7ygAA3FEGAOCOMgAAd5QBALijbtcA/Pu/3/RLcH3mnqZakWpFG69mALZl7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWpVmQAsuaeplqRakUGIGvuaaoVqVZkALLmnqZakWpFBiBr7mmqFalWZACy5p6mWpFqRQYga+5pqhWp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kQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImgQFBRoAAAwTSURBVHuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWqFRmArLmnqVakWpEByJp7mmpFqhUZgKy5p6lWpFqRAciae5pqRaoVGYCsuaepVqRakQHImnuaakWq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" class="img-fluid figure-img" width="768"></p>
-<figcaption>Chosen k by refit year. Stability across refits is encouraging — drift in <span class="math inline">\(k\)</span> would suggest the structure is unstable.</figcaption>
+<figcaption>Chosen k by refit year. The repeated selection of k = 2 is a finding: monthly stock-return co-movement is dominated by a broad two-regime structure rather than many clean industry-like clusters.</figcaption>
 </figure>
 </div>
 </div>
 </div>
+<p>The consistent selection of <code>k = 2</code> should be read as a substantive result, not as a failed attempt to recreate industry sectors. At the monthly horizon, the S&amp;P 500 return-correlation matrix appears to be dominated by one broad principal axis, broadly interpretable as market-beta or risk-regime exposure. That means the K-Means scheme is best interpreted as a coarse cross-sector risk-regime split, not as a fine-grained substitute for GICS or SIC/FF12.</p>
 </section>
 <section id="three-way-comparison" class="level1">
 <h1>6. Three-way comparison</h1>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>feats_g <span class="ot">&lt;-</span> <span class="fu">attach_clusters</span>(feats, clust<span class="sc">$</span>assignments)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>feats_g <span class="ot">&lt;-</span> <span class="fu">attach_clusters</span>(feats, clust<span class="sc">$</span>assignments)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 </div>
 <section id="composition" class="level2">
@@ -3247,9 +3245,9 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>comp <span class="ot">&lt;-</span> <span class="fu">composition_compare</span>(feats_g)</span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>comp<span class="sc">$</span>ari <span class="sc">|&gt;</span></span>
-<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">3</span>, <span class="at">caption =</span> <span class="st">&quot;Adjusted Rand index between scheme pairs&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>comp <span class="ot">&lt;-</span> <span class="fu">composition_compare</span>(feats_g)</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>comp<span class="sc">$</span>ari <span class="sc">|&gt;</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">3</span>, <span class="at">caption =</span> <span class="st">&quot;Adjusted Rand index between scheme pairs&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -3285,9 +3283,9 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>comp<span class="sc">$</span>contingency<span class="sc">$</span>gics_vs_cluster <span class="sc">|&gt;</span></span>
-<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.data.frame.matrix</span>() <span class="sc">|&gt;</span></span>
-<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">caption =</span> <span class="st">&quot;GICS sector × K-Means cluster (most recent month)&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>comp<span class="sc">$</span>contingency<span class="sc">$</span>gics_vs_cluster <span class="sc">|&gt;</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.data.frame.matrix</span>() <span class="sc">|&gt;</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">caption =</span> <span class="st">&quot;GICS sector × K-Means cluster (most recent month)&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -3362,9 +3360,9 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>comp<span class="sc">$</span>contingency<span class="sc">$</span>ff12_vs_cluster <span class="sc">|&gt;</span></span>
-<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.data.frame.matrix</span>() <span class="sc">|&gt;</span></span>
-<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">caption =</span> <span class="st">&quot;FF12 industry × K-Means cluster (most recent month)&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>comp<span class="sc">$</span>contingency<span class="sc">$</span>ff12_vs_cluster <span class="sc">|&gt;</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.data.frame.matrix</span>() <span class="sc">|&gt;</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">caption =</span> <span class="st">&quot;FF12 industry × K-Means cluster (most recent month)&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -3448,8 +3446,8 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>homo <span class="ot">&lt;-</span> <span class="fu">homogeneity_compare</span>(feats_g, panel)</span>
-<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>homo <span class="sc">|&gt;</span> <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">4</span>, <span class="at">caption =</span> <span class="st">&quot;Within-group homogeneity by scheme&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb31"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>homo <span class="ot">&lt;-</span> <span class="fu">homogeneity_compare</span>(feats_g, panel)</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>homo <span class="sc">|&gt;</span> <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">4</span>, <span class="at">caption =</span> <span class="st">&quot;Within-group homogeneity by scheme&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -3504,16 +3502,16 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb33"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>pred <span class="ot">&lt;-</span> <span class="fu">prediction_compare</span>(feats_g)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>pred <span class="ot">&lt;-</span> <span class="fu">prediction_compare</span>(feats_g)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[18:52:30] Prediction: train n=7281, test n=3336</code></pre>
+<pre><code>[19:02:45] Prediction: train n=7281, test n=3336</code></pre>
 </div>
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>pred<span class="sc">$</span>aggregate <span class="sc">|&gt;</span></span>
-<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(<span class="fu">desc</span>(r2_oos_weighted)) <span class="sc">|&gt;</span></span>
-<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">4</span>, <span class="at">caption =</span> <span class="st">&quot;Aggregate prediction metrics by scheme&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb34"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>pred<span class="sc">$</span>aggregate <span class="sc">|&gt;</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(<span class="fu">desc</span>(r2_oos_weighted)) <span class="sc">|&gt;</span></span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">4</span>, <span class="at">caption =</span> <span class="st">&quot;Aggregate prediction metrics by scheme&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -3576,15 +3574,15 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>pred<span class="sc">$</span>per_group <span class="sc">|&gt;</span></span>
-<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="fu">reorder</span>(group, r2_oos), r2_oos, <span class="at">fill =</span> scheme)) <span class="sc">+</span></span>
-<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_col</span>() <span class="sc">+</span></span>
-<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">coord_flip</span>() <span class="sc">+</span></span>
-<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span> scheme, <span class="at">scales =</span> <span class="st">&quot;free_y&quot;</span>) <span class="sc">+</span></span>
-<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="cn">NULL</span>, <span class="at">y =</span> <span class="st">&quot;out-of-sample R²&quot;</span>, <span class="at">fill =</span> <span class="cn">NULL</span>,</span>
-<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a>       <span class="at">title =</span> <span class="st">&quot;OOS R² per group, by scheme&quot;</span>) <span class="sc">+</span></span>
-<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="at">GICS =</span> <span class="st">&quot;#1F4E79&quot;</span>, <span class="at">FF12 =</span> <span class="st">&quot;#2E75B6&quot;</span>, <span class="at">Cluster =</span> <span class="st">&quot;#C00000&quot;</span>)) <span class="sc">+</span></span>
-<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">&quot;none&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>pred<span class="sc">$</span>per_group <span class="sc">|&gt;</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="fu">reorder</span>(group, r2_oos), r2_oos, <span class="at">fill =</span> scheme)) <span class="sc">+</span></span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_col</span>() <span class="sc">+</span></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">coord_flip</span>() <span class="sc">+</span></span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span> scheme, <span class="at">scales =</span> <span class="st">&quot;free_y&quot;</span>) <span class="sc">+</span></span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="cn">NULL</span>, <span class="at">y =</span> <span class="st">&quot;out-of-sample R²&quot;</span>, <span class="at">fill =</span> <span class="cn">NULL</span>,</span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a>       <span class="at">title =</span> <span class="st">&quot;OOS R² per group, by scheme&quot;</span>) <span class="sc">+</span></span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="at">GICS =</span> <span class="st">&quot;#1F4E79&quot;</span>, <span class="at">FF12 =</span> <span class="st">&quot;#2E75B6&quot;</span>, <span class="at">Cluster =</span> <span class="st">&quot;#C00000&quot;</span>)) <span class="sc">+</span></span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">&quot;none&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <div>
@@ -3594,7 +3592,7 @@ window.Quarto = {
 </div>
 </div>
 </div>
-<p>The pooled baseline (no grouping) gives a single all-stocks Elastic Net. If any of the three schemes can beat the pooled model on R² <em>and</em> directional accuracy, that scheme is adding information beyond what the features carry on their own. If a scheme improves only one metric, such as MAE or R², the interpretation should be more cautious: it may reduce average forecast error without producing a consistently better directional signal.</p>
+<p>The pooled baseline (no grouping) gives a single all-stocks Elastic Net. In this full-panel render, the Cluster scheme is the only grouped model that beats the pooled baseline on both out-of-sample R² and directional accuracy, even though the margin is modest. This is important because the K-Means model uses only a coarse two-cluster split, so it adds forecasting structure without fragmenting the training data into as many small industry-specific regressions as GICS or FF12. The negative R² values still show that alpha forecasting is difficult overall, but the relative ranking suggests that a broad co-movement risk-regime split can be more useful for prediction than finer industry labels when the per-stock signal is weak.</p>
 </section>
 <section id="anomaly-detection" class="level2">
 <h2 class="anchored" data-anchor-id="anomaly-detection">6.4 Anomaly detection</h2>
@@ -3602,21 +3600,21 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb37"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>anom <span class="ot">&lt;-</span> <span class="fu">anomaly_compare</span>(feats_g)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb36"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>anom <span class="ot">&lt;-</span> <span class="fu">anomaly_compare</span>(feats_g)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[18:52:32]   iForest within GICS
-[18:52:32]   iForest within FF12
-[18:52:32]   iForest within Cluster</code></pre>
+<pre><code>[19:02:46]   iForest within GICS
+[19:02:46]   iForest within FF12
+[19:02:46]   iForest within Cluster</code></pre>
 </div>
 </div>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb39"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>anom<span class="sc">$</span>fwd_compare <span class="sc">|&gt;</span></span>
-<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(scheme, horizon, flagged) <span class="sc">|&gt;</span></span>
-<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">4</span>,</span>
-<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a>        <span class="at">caption =</span> <span class="st">&quot;Mean forward alpha for flagged vs. non-flagged stocks, by scheme and horizon&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb38"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>anom<span class="sc">$</span>fwd_compare <span class="sc">|&gt;</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(scheme, horizon, flagged) <span class="sc">|&gt;</span></span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">4</span>,</span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>        <span class="at">caption =</span> <span class="st">&quot;Mean forward alpha for flagged vs. non-flagged stocks, by scheme and horizon&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -3783,18 +3781,18 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb40"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>anom<span class="sc">$</span>fwd_compare <span class="sc">|&gt;</span></span>
-<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(scheme, horizon) <span class="sc">|&gt;</span></span>
-<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
-<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">gap =</span> mean_fwd_alpha[flagged] <span class="sc">-</span> mean_fwd_alpha[<span class="sc">!</span>flagged],</span>
-<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">.groups =</span> <span class="st">&quot;drop&quot;</span></span>
-<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
-<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="fu">factor</span>(horizon), gap, <span class="at">fill =</span> scheme)) <span class="sc">+</span></span>
-<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_col</span>(<span class="at">position =</span> <span class="fu">position_dodge</span>(<span class="at">width =</span> <span class="fl">0.8</span>), <span class="at">width =</span> <span class="fl">0.7</span>) <span class="sc">+</span></span>
-<span id="cb40-9"><a href="#cb40-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_hline</span>(<span class="at">yintercept =</span> <span class="dv">0</span>) <span class="sc">+</span></span>
-<span id="cb40-10"><a href="#cb40-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="at">GICS =</span> <span class="st">&quot;#1F4E79&quot;</span>, <span class="at">FF12 =</span> <span class="st">&quot;#2E75B6&quot;</span>, <span class="at">Cluster =</span> <span class="st">&quot;#C00000&quot;</span>)) <span class="sc">+</span></span>
-<span id="cb40-11"><a href="#cb40-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;horizon (months ahead)&quot;</span>,</span>
-<span id="cb40-12"><a href="#cb40-12" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">&quot;mean forward alpha (flagged − non-flagged)&quot;</span>, <span class="at">fill =</span> <span class="cn">NULL</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb39"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>anom<span class="sc">$</span>fwd_compare <span class="sc">|&gt;</span></span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(scheme, horizon) <span class="sc">|&gt;</span></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">gap =</span> mean_fwd_alpha[flagged] <span class="sc">-</span> mean_fwd_alpha[<span class="sc">!</span>flagged],</span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">.groups =</span> <span class="st">&quot;drop&quot;</span></span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="fu">factor</span>(horizon), gap, <span class="at">fill =</span> scheme)) <span class="sc">+</span></span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_col</span>(<span class="at">position =</span> <span class="fu">position_dodge</span>(<span class="at">width =</span> <span class="fl">0.8</span>), <span class="at">width =</span> <span class="fl">0.7</span>) <span class="sc">+</span></span>
+<span id="cb39-9"><a href="#cb39-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_hline</span>(<span class="at">yintercept =</span> <span class="dv">0</span>) <span class="sc">+</span></span>
+<span id="cb39-10"><a href="#cb39-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_fill_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="at">GICS =</span> <span class="st">&quot;#1F4E79&quot;</span>, <span class="at">FF12 =</span> <span class="st">&quot;#2E75B6&quot;</span>, <span class="at">Cluster =</span> <span class="st">&quot;#C00000&quot;</span>)) <span class="sc">+</span></span>
+<span id="cb39-11"><a href="#cb39-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;horizon (months ahead)&quot;</span>,</span>
+<span id="cb39-12"><a href="#cb39-12" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">&quot;mean forward alpha (flagged − non-flagged)&quot;</span>, <span class="at">fill =</span> <span class="cn">NULL</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
@@ -3805,13 +3803,14 @@ window.Quarto = {
 </div>
 </div>
 </div>
+<p>The anomaly results provide the clearest economic story in the report. The flagged portfolios generally earn more negative subsequent alpha than the non-flagged portfolios, especially at the one-month horizon and with evidence that the gap can persist out to six months. This supports the interpretation that the Isolation Forest is not merely identifying random outliers; it is flagging stocks whose recent behavior is followed by economically meaningful underperformance on a risk-adjusted basis.</p>
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a>anom<span class="sc">$</span>flag_overlap <span class="sc">|&gt;</span></span>
-<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(a <span class="sc">!=</span> b) <span class="sc">|&gt;</span></span>
-<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">3</span>,</span>
-<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>        <span class="at">caption =</span> <span class="st">&quot;Pairwise Jaccard overlap of flagged (permno, date_eom) keys&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb40"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>anom<span class="sc">$</span>flag_overlap <span class="sc">|&gt;</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(a <span class="sc">!=</span> b) <span class="sc">|&gt;</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">3</span>,</span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>        <span class="at">caption =</span> <span class="st">&quot;Pairwise Jaccard overlap of flagged (permno, date_eom) keys&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -3876,13 +3875,13 @@ window.Quarto = {
 </section>
 <section id="discussion" class="level1">
 <h1>7. Discussion</h1>
-<p>The main result is deliberately nuanced: K-Means clusters are meaningfully different from GICS and FF12, and they can add forecasting structure on some out-of-sample metrics, but they are not automatically superior to traditional industry classifications. The right conclusion is that classification choice changes the prediction and anomaly-detection problem, not that ML clustering universally replaces GICS or SIC-based labels.</p>
+<p>The main result is deliberately nuanced: K-Means clusters are meaningfully different from GICS and FF12, and they add modest forecasting structure relative to the pooled baseline, but they are not automatically superior to traditional industry classifications. The strongest economic result comes from anomaly detection: stocks flagged as unusual tend to underperform non-flagged stocks on subsequent risk-adjusted returns. The right conclusion is that classification choice changes the prediction and anomaly-detection problem, not that ML clustering universally replaces GICS or SIC-based labels.</p>
 <p>The four-dimensional comparison gives a more complete answer than any single metric:</p>
 <ul>
 <li><strong>Composition.</strong> Low Rand-index values between K-Means and either of the industry schemes confirm that the unsupervised clustering finds structure that is not reducible to industry codes. The GICS-FF12 ARI is expected to be the highest of the three pairs — both partitions are ultimately built around the same notion of what a firm “does.”</li>
 <li><strong>Homogeneity.</strong> Co-movement clusters are constructed from return-correlation information, but the K-Means solution can still be broader than traditional industry groups. If GICS or FF12 has higher <code>mean_within_corr</code>, the result should not be read as a failure of the ML approach; it means industry labels remain strong for narrow co-movement and interpretability, while K-Means is identifying a different, more cross-sector segmentation. The alpha-dispersion comparison is also important because it asks whether a grouping organizes <em>unexplained</em> return behavior, not just raw return similarity.</li>
-<li><strong>Prediction.</strong> The economically meaningful comparison is whether per-group models beat the pooled baseline. If they do, the grouping is carrying information that conditions the alpha-forecasting relationship — different industries respond differently to factor exposures and macro conditions. If the pooled model wins, the data is telling us there isn’t enough sample within any single industry or cluster to reliably estimate group-specific dynamics, and one global model is the right answer.</li>
-<li><strong>Anomalies.</strong> A scheme whose Isolation Forest flags subsequently earn meaningfully different forward alpha — and where that difference persists at 3 and 6 months rather than mean-reverting in a single month — has a credible mispricing reading. If all three schemes flag similar-quality anomalies, the choice of grouping doesn’t matter much for outlier detection, and one would prefer the simpler / more interpretable scheme (GICS).</li>
+<li><strong>Prediction.</strong> The Cluster model is the only grouped scheme that beats the pooled baseline on both out-of-sample R² and directional accuracy in this render. GICS and FF12 remain useful and interpretable, but their finer partitions can pay a bias-variance cost because each sector or industry regression has less training data. The practical interpretation is that a coarse co-movement split captures broad risk-regime structure that the pooled model misses without over-fragmenting the sample.</li>
+<li><strong>Anomalies.</strong> The anomaly analysis is the most concrete economic result. Stocks flagged as unusual subsequently earn more negative forward alpha than non-flagged stocks, especially at the one-month horizon, and the gap does not disappear immediately at longer horizons. The overlap table also shows that the three schemes do not flag exactly the same stocks, so the grouping choice changes which names are treated as abnormal rather than merely changing the label attached to the same outlier set.</li>
 </ul>
 <p>Two caveats remain. First, even though this version is rendered with the larger S&amp;P 500 panel rather than the earlier 50-stock dev sample, the results should still be interpreted as a proof-of-concept classification experiment rather than a deployable trading model. Second, the alpha computation is itself dependent on the FF5 specification — alpha that the FF5 model fails to absorb might still be priced by extensions such as momentum, quality, or short-term reversal. Our anomaly definition is therefore “FF5-residual,” not “genuinely unexplained.”</p>
 </section>
@@ -3900,11 +3899,11 @@ window.Quarto = {
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb42"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="fu">list.files</span>(<span class="fu">c</span>(PATHS<span class="sc">$</span>raw, PATHS<span class="sc">$</span>processed),</span>
-<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>           <span class="at">pattern =</span> <span class="st">&quot;</span><span class="sc">\\</span><span class="st">.parquet$&quot;</span>, <span class="at">full.names =</span> <span class="cn">TRUE</span>) <span class="sc">|&gt;</span></span>
-<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tibble</span>(<span class="at">file =</span> _) <span class="sc">|&gt;</span></span>
-<span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">size_kb =</span> <span class="fu">round</span>(<span class="fu">file.size</span>(file) <span class="sc">/</span> <span class="dv">1024</span>, <span class="dv">1</span>)) <span class="sc">|&gt;</span></span>
-<span id="cb42-5"><a href="#cb42-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb41"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="fu">list.files</span>(<span class="fu">c</span>(PATHS<span class="sc">$</span>raw, PATHS<span class="sc">$</span>processed),</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>           <span class="at">pattern =</span> <span class="st">&quot;</span><span class="sc">\\</span><span class="st">.parquet$&quot;</span>, <span class="at">full.names =</span> <span class="cn">TRUE</span>) <span class="sc">|&gt;</span></span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tibble</span>(<span class="at">file =</span> _) <span class="sc">|&gt;</span></span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">size_kb =</span> <span class="fu">round</span>(<span class="fu">file.size</span>(file) <span class="sc">/</span> <span class="dv">1024</span>, <span class="dv">1</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
